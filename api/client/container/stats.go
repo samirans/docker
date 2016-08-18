@@ -24,6 +24,7 @@ type statsOptions struct {
 	all      bool
 	noStream bool
 
+
 	containers []string
 }
 
@@ -44,6 +45,7 @@ func NewStatsCommand(dockerCli *client.DockerCli) *cobra.Command {
 	flags := cmd.Flags()
 	flags.BoolVarP(&opts.all, "all", "a", false, "Show all containers (default shows just running)")
 	flags.BoolVar(&opts.noStream, "no-stream", false, "Disable streaming stats and only pull the first result")
+
 	return cmd
 }
 

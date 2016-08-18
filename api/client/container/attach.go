@@ -39,7 +39,7 @@ func NewAttachCommand(dockerCli *client.DockerCli) *cobra.Command {
 	cmd.SetFlagErrorFunc(flagErrorFunc)
 
 	flags := cmd.Flags()
-	flags.BoolVar(&opts.noStdin, "no-stdin", false, "Do not attach STDIN")
+	flags.BoolVar(&opts.noStdin, "no-stdin", false, "Do not attach STDIN (standard in new)")
 	flags.BoolVar(&opts.proxy, "sig-proxy", true, "Proxy all received signals to the process")
 	flags.StringVar(&opts.detachKeys, "detach-keys", "", "Override the key sequence for detaching a container")
 	return cmd
