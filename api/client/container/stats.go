@@ -18,6 +18,8 @@ import (
 	"github.com/docker/engine-api/types/events"
 	"github.com/docker/engine-api/types/filters"
 	"github.com/spf13/cobra"
+
+
 )
 
 type statsOptions struct {
@@ -110,6 +112,8 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		}
 	}
 
+
+
 	if showAll {
 		// If no names were specified, start a long running goroutine which
 		// monitors container events. We make sure we're subscribed before
@@ -150,7 +154,37 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		// Start a short-lived goroutine to retrieve the initial list of
 		// containers.
 		getContainerList()
-	} else {
+	} 
+
+	
+
+
+
+
+	//=================edit
+	if opts.v{
+	        waitFirst.Add(1)
+	        fmt.Println(system.GetVols(dockerCli,opts.containers,waitFirst))
+	        close(closeChan)
+
+	        // Do a quick pause to detect any error with the provided list of
+	        // container names.
+	        time.Sleep(1500 * time.Millisecond)
+	        var errs []string
+	        cStats.mu.Lock()
+	        for _, c := range cStats.cs {
+	                c.mu.Lock()
+	                if c.err != nil {
+	                        errs = append(errs, fmt.Sprintf("%s: %v", c.Name, c.err))
+	                }
+	                c.mu.Unlock()
+	        }
+	        cStats.mu.Unlock()
+	        if len(errs) > 0 {
+	                return fmt.Errorf("%s", strings.Join(errs, ", "))
+	        }
+
+	}else{
 		// Artificially send creation events for the containers we were asked to
 		// monitor (same code path than we use when monitoring all containers).
 		for _, name := range opts.containers {

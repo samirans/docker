@@ -3,6 +3,7 @@ package system
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"golang.org/x/net/context"
 
@@ -41,6 +42,69 @@ func NewInspectCommand(dockerCli *client.DockerCli) *cobra.Command {
 
 	return cmd
 }
+
+
+
+
+
+//==========================edit
+
+
+func GetVols(dockerCli *client.DockerCli, containers []string,waitFirst *sync.WaitGroup) error {
+	ctx := context.Background()
+	client := dockerCli.Client()
+
+	var opts inspectOptions	
+	var getRefFunc inspect.GetRefFunc
+
+	opts=inspectOptions{
+	format:"",
+	inspectType:"",
+	size:false,
+	ids:containers,
+	}
+ 	
+	defer func() {
+		waitFirst.Done()
+	}()
+		
+	switch opts.inspectType {
+	case "container":
+		getRefFunc = func(ref string) (interface{}, []byte, error) {
+			return client.ContainerInspectWithRaw(ctx, ref, opts.size)
+		}
+	case "":
+		getRefFunc = inspectAll(ctx, dockerCli, opts.size)
+	default:
+		return fmt.Errorf("%q is not a valid value for --type", opts.inspectType)
+	}
+
+	return inspect.Inspect(dockerCli.Out(), opts.ids, opts.format, getRefFunc)
+}
+
+
+
+//===============================edit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 func runInspect(dockerCli *client.DockerCli, opts inspectOptions) error {
 	ctx := context.Background()
