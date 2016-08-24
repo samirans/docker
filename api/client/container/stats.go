@@ -172,7 +172,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 	
 		 // Do a quick pause to detect any error with the provided list of
 		 // container names.
-		 time.Sleep(1500 * time.Millisecond)
+		 //time.Sleep(1500 * time.Millisecond)
 		 var errs []string
 		 cStats.mu.Lock()
 		 for _, c := range cStats.cs {
@@ -186,6 +186,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		 if len(errs) > 0 {
 		 return fmt.Errorf("%s", strings.Join(errs, ", "))
 		 }
+		 return nil
 //=================edit
 	}else{
 		// Artificially send creation events for the containers we were asked to
