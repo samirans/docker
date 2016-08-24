@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"golang.org/x/net/context"
+	
 
 	"github.com/docker/docker/api/client"
 	"github.com/docker/docker/api/client/inspect"
@@ -50,37 +51,33 @@ func NewInspectCommand(dockerCli *client.DockerCli) *cobra.Command {
 //==========================edit
 
 
-func GetVols(dockerCli *client.DockerCli, containers []string,waitFirst *sync.WaitGroup) error {
-	ctx := context.Background()
-	client := dockerCli.Client()
 
-	var opts inspectOptions	
-	var getRefFunc inspect.GetRefFunc
+func GetVols(dockerCli *client.DockerCli, containers []string,waitFirst *sync.WaitGroup) {
+        ctx := context.Background()
+        client := dockerCli.Client()
 
-	opts=inspectOptions{
-	format:"",
-	inspectType:"",
-	size:false,
-	ids:containers,
-	}
- 	
+
+//        var getRefFunc inspect.GetRefFunc
+
 	defer func() {
-		waitFirst.Done()
-	}()
-		
-	switch opts.inspectType {
-	case "container":
-		getRefFunc = func(ref string) (interface{}, []byte, error) {
-			return client.ContainerInspectWithRaw(ctx, ref, opts.size)
-		}
-	case "":
-		getRefFunc = inspectAll(ctx, dockerCli, opts.size)
-	default:
-		return fmt.Errorf("%q is not a valid value for --type", opts.inspectType)
-	}
+                waitFirst.Done()
+        }()
 
-	return inspect.Inspect(dockerCli.Out(), opts.ids, opts.format, getRefFunc)
+	for _,name := range containers{
+		id:=name
+	      	response, body, err:= client.ContainerInspectWithRaw(ctx, id, false)
+			
+		if(err != nil){
+		fmt.Println(body)
+		}
+		fmt.Println("Name:"+response.Mounts[0].Name)
+		fmt.Println("Driver: "+response.Mounts[0].Driver)
+		//fmt.Println(body, err)
+
+	}//for
+
 }
+
 
 
 

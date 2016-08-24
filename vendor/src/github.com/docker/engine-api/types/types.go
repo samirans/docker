@@ -363,7 +363,7 @@ type ContainerJSONBase struct {
 // ContainerJSON is newly used struct along with MountPoint
 type ContainerJSON struct {
 	*ContainerJSONBase
-	Mounts          []MountPoint
+	Mounts          []MountPoint  `json:"Mounts,omitempt"` //edit
 	Config          *container.Config
 	NetworkSettings *NetworkSettings
 }
@@ -410,10 +410,10 @@ type DefaultNetworkSettings struct {
 
 // MountPoint represents a mount point configuration inside the container.
 type MountPoint struct {
-	Name        string `json:",omitempty"`
-	Source      string
-	Destination string
-	Driver      string `json:",omitempty"`
+	Name        string `json:"Name,omitempty"`
+	Source      string `json:"Source,omitempty"`
+	Destination string `json:"Destination,omitempty"`
+	Driver      string `json:"Driver,omitempty"`
 	Mode        string
 	RW          bool
 	Propagation string

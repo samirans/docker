@@ -7,7 +7,8 @@ import (
 	"sync"
 	"text/tabwriter"
 	"time"
-
+//	"encoding/json"
+	
 	"golang.org/x/net/context"
 
 	"github.com/Sirupsen/logrus"
@@ -161,29 +162,31 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 
 
 
-	//=================edit
+//=================edit
 	if opts.v{
-	        waitFirst.Add(1)
-	        fmt.Println(system.GetVols(dockerCli,opts.containers,waitFirst))
-	        close(closeChan)
-
-	        // Do a quick pause to detect any error with the provided list of
-	        // container names.
-	        time.Sleep(1500 * time.Millisecond)
-	        var errs []string
-	        cStats.mu.Lock()
-	        for _, c := range cStats.cs {
-	                c.mu.Lock()
-	                if c.err != nil {
-	                        errs = append(errs, fmt.Sprintf("%s: %v", c.Name, c.err))
-	                }
-	                c.mu.Unlock()
-	        }
-	        cStats.mu.Unlock()
-	        if len(errs) > 0 {
-	                return fmt.Errorf("%s", strings.Join(errs, ", "))
-	        }
-
+		
+		 waitFirst.Add(1)
+		 //fmt.Println(system.GetVols(dockerCli,opts.containers,waitFirst))
+		 system.GetVols(dockerCli,opts.containers,waitFirst)
+ 		 close(closeChan)
+	
+		 // Do a quick pause to detect any error with the provided list of
+		 // container names.
+		 time.Sleep(1500 * time.Millisecond)
+		 var errs []string
+		 cStats.mu.Lock()
+		 for _, c := range cStats.cs {
+			 c.mu.Lock()
+			 if c.err != nil {
+			 errs = append(errs, fmt.Sprintf("%s: %v", c.Name, c.err))
+			 }
+			 c.mu.Unlock()
+		 }
+		 cStats.mu.Unlock()
+		 if len(errs) > 0 {
+		 return fmt.Errorf("%s", strings.Join(errs, ", "))
+		 }
+//=================edit
 	}else{
 		// Artificially send creation events for the containers we were asked to
 		// monitor (same code path than we use when monitoring all containers).
