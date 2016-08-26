@@ -164,30 +164,69 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 
 //=================edit
 	if opts.v{
+
+	waitFirst.Add(1)
+	//fmt.Println(system.GetVols(dockerCli,opts.containers,waitFirst))
+	volMap := make(map[int][]string)
+	volMap= system.GetVols(dockerCli,opts.containers,waitFirst)
+	//for i:=0;i<len(volMap);i++{
+					 //fmt.Println(volMap[i])
+	//}
+	//format:="%s\t%s\t%s"
+	fmt.Fprint(dockerCli.Out(), "\033[2J")
+        fmt.Fprint(dockerCli.Out(), "\033[H")
+
+	for i:=0;i<len(volMap);i++{
+
+	w := tabwriter.NewWriter(dockerCli.Out(), 5, 1, 3, ' ', 0)
+	fmt.Println("")
+	fmt.Println("CONTAINER:"+volMap[i][0])
+	io.WriteString(w,"VOLUME NAME\tDRIVER NAME\tAVG.READ LATENCY\tAVG.WRITE LATENCY\t\n")
+
+	for j:=1;j<len(volMap[i]);j++{
+		response,err:=system.GetVolStats(dockerCli,volMap[i][j])
 		
-		 waitFirst.Add(1)
-		 //fmt.Println(system.GetVols(dockerCli,opts.containers,waitFirst))
-		 system.GetVols(dockerCli,opts.containers,waitFirst)
- 		 close(closeChan)
-	
-		 // Do a quick pause to detect any error with the provided list of
-		 // container names.
-		 //time.Sleep(1500 * time.Millisecond)
-		 var errs []string
-		 cStats.mu.Lock()
-		 for _, c := range cStats.cs {
-			 c.mu.Lock()
-			 if c.err != nil {
-			 errs = append(errs, fmt.Sprintf("%s: %v", c.Name, c.err))
-			 }
-			 c.mu.Unlock()
-		 }
-		 cStats.mu.Unlock()
-		 if len(errs) > 0 {
-		 return fmt.Errorf("%s", strings.Join(errs, ", "))
-		 }
-		 return nil
-//=================edit
+			
+			format := "%s\t%s\t%s\t%s\n"
+			if err != nil {
+				format = "%s\t%s\t%s\t%s\n"
+				errStr := "--"
+				fmt.Fprintf(w, format,
+				response.Name, errStr, errStr,errStr,
+				)
+				//err := s.err
+				//return err
+				}
+
+			fmt.Fprintf(w, format,
+				response.Name[:12],
+				response.Driver,
+				"0","0")
+			}
+			w.Flush()
+		}
+
+		close(closeChan)
+
+
+
+		// Do a quick pause to detect any error with the provided list of
+		// container names.
+		//time.Sleep(1500 * time.Millisecond)
+		var errs []string
+		cStats.mu.Lock()
+		for _, c := range cStats.cs {
+					c.mu.Lock()
+					if c.err != nil {
+					errs = append(errs, fmt.Sprintf("%s: %v", c.Name, c.err))
+					}
+					c.mu.Unlock()
+		}
+		cStats.mu.Unlock()
+		if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, ", "))
+		}
+		return nil
 	}else{
 		// Artificially send creation events for the containers we were asked to
 		// monitor (same code path than we use when monitoring all containers).
