@@ -424,10 +424,13 @@ type Volume struct {
 	Name       string                 // Name is the name of the volume
 	Driver     string                 // Driver is the Driver name used to create the volume
 	Mountpoint string                 // Mountpoint is the location on disk of the volume
-	Status     map[string]interface{} `json:",omitempty"` // Status provides low-level status information about the volume
+	Status     map[string]interface{} `json:"Status,omitempty"` // Status provides low-level status information about the volume
 	Labels     map[string]string      // Labels is metadata specific to the volume
 	Scope      string                 // Scope describes the level at which the volume exists (e.g. `global` for cluster-wide or `local` for machine level)
+
 }
+
+
 
 // VolumesListResponse contains the response for the remote API:
 // GET "/volumes"

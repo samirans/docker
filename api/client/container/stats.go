@@ -181,28 +181,43 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 	w := tabwriter.NewWriter(dockerCli.Out(), 5, 1, 3, ' ', 0)
 	fmt.Println("")
 	fmt.Println("CONTAINER:"+volMap[i][0])
-	io.WriteString(w,"VOLUME NAME\tDRIVER NAME\tAVG.READ LATENCY\tAVG.WRITE LATENCY\t\n")
+	io.WriteString(w,"VOLUME NAME\tDRIVER NAME\tREAD LATENCY(us)\tWRITE LATENCY(us)\t\n")
 
 	for j:=1;j<len(volMap[i]);j++{
 		response,err:=system.GetVolStats(dockerCli,volMap[i][j])
+
+		md,ok := response.Status["iostats"].(map[string]interface{})
+
+		readLat,okread:= md["read_latency(us)"].(map[string]interface{})
+		writeLat,okwrite:= md["write_latency(us)"].(map[string]interface{})
 		
-			
+                        name:=" "
+
+                        if(len(response.Name)>=12){
+                        name = response.Name[:12]
+                        }else{
+                        name = response.Name
+                        }
+
+		
 			format := "%s\t%s\t%s\t%s\n"
-			if err != nil {
+			if (err!=nil || ok!=true || okread!=true || okwrite!=true) {
 				format = "%s\t%s\t%s\t%s\n"
 				errStr := "--"
 				fmt.Fprintf(w, format,
-				response.Name, errStr, errStr,errStr,
+				name, errStr, errStr,errStr,
 				)
 				//err := s.err
 				//return err
-				}
-
+			}else{
 			fmt.Fprintf(w, format,
-				response.Name[:12],
+				name,
 				response.Driver,
-				"0","0")
+				readLat["value"],
+				writeLat["value"],
+				)
 			}
+		}
 			w.Flush()
 		}
 
