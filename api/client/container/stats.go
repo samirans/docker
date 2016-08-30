@@ -166,38 +166,51 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 	if opts.v{
 
 	waitFirst.Add(1)
-	//fmt.Println(system.GetVols(dockerCli,opts.containers,waitFirst))
+
 	volMap := make(map[int][]string)
 	volMap= system.GetVols(dockerCli,opts.containers,waitFirst)
-	//for i:=0;i<len(volMap);i++{
-					 //fmt.Println(volMap[i])
-	//}
-	//format:="%s\t%s\t%s"
-	fmt.Fprint(dockerCli.Out(), "\033[2J")
-        fmt.Fprint(dockerCli.Out(), "\033[H")
 
-	for i:=0;i<len(volMap);i++{
+        // Do a quick pause to detect any error with the provided list of
+        // container names.
+        //time.Sleep(1500 * time.Millisecond)
+        var errs []string
+        cStats.mu.Lock()
+        for _, c := range cStats.cs {
+                          c.mu.Lock()
+                          if c.err != nil {
+                          errs = append(errs, fmt.Sprintf("%s: %v", c.Name, c.err))
+                          }
+                         c.mu.Unlock()
+               }
+        cStats.mu.Unlock()
+        if len(errs) > 0 {
+        return fmt.Errorf("%s", strings.Join(errs, ", "))
+        }
 
-	w := tabwriter.NewWriter(dockerCli.Out(), 5, 1, 3, ' ', 0)
-	fmt.Println("")
-	fmt.Println("CONTAINER:"+volMap[i][0])
-	io.WriteString(w,"VOLUME NAME\tDRIVER NAME\tREAD LATENCY(us)\tWRITE LATENCY(us)\t\n")
+        w := tabwriter.NewWriter(dockerCli.Out(), 20, 1, 3, ' ', 0)
+	for range time.Tick(500 * time.Millisecond) {
+		fmt.Fprint(dockerCli.Out(), "\033[2J")
+	        fmt.Fprint(dockerCli.Out(), "\033[H")
+	
+		for i:=0;i<len(volMap);i++{
+		fmt.Println("CONTAINER:"+volMap[i][0])
+		io.WriteString(w,"VOLUME NAME\tDRIVER NAME\tREAD LATENCY(us)\tWRITE LATENCY(us)\t\n")
 
-	for j:=1;j<len(volMap[i]);j++{
-		response,err:=system.GetVolStats(dockerCli,volMap[i][j])
+		for j:=1;j<len(volMap[i]);j++{
+			response,err:=system.GetVolStats(dockerCli,volMap[i][j])
 
-		md,ok := response.Status["iostats"].(map[string]interface{})
+			md,ok := response.Status["iostats"].(map[string]interface{})
 
-		readLat,okread:= md["read_latency(us)"].(map[string]interface{})
-		writeLat,okwrite:= md["write_latency(us)"].(map[string]interface{})
-		
-                        name:=" "
+			readLat,okread:= md["Read Latency (us)"].(map[string]interface{})
+			writeLat,okwrite:= md["Write Latency (us)"].(map[string]interface{})
+			
+	                        name:=" "
 
-                        if(len(response.Name)>=12){
-                        name = response.Name[:12]
-                        }else{
-                        name = response.Name
-                        }
+        	                if(len(response.Name)>=12){
+                	        name = response.Name[:12]
+                        	}else{
+                        	name = response.Name
+                        	}	
 
 		
 			format := "%s\t%s\t%s\t%s\n"
@@ -216,33 +229,18 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 				readLat["value"],
 				writeLat["value"],
 				)
+				}
+
 			}
-		}
-			w.Flush()
+		//	w.Flush()
 		}
 
-		close(closeChan)
+	w.Flush()
+	}
+        close(closeChan)
 
-
-
-		// Do a quick pause to detect any error with the provided list of
-		// container names.
-		//time.Sleep(1500 * time.Millisecond)
-		var errs []string
-		cStats.mu.Lock()
-		for _, c := range cStats.cs {
-					c.mu.Lock()
-					if c.err != nil {
-					errs = append(errs, fmt.Sprintf("%s: %v", c.Name, c.err))
-					}
-					c.mu.Unlock()
-		}
-		cStats.mu.Unlock()
-		if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, ", "))
-		}
-		return nil
-	}else{
+return nil
+}else{
 		// Artificially send creation events for the containers we were asked to
 		// monitor (same code path than we use when monitoring all containers).
 		for _, name := range opts.containers {
