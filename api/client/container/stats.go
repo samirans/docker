@@ -7,8 +7,7 @@ import (
 	"sync"
 	"text/tabwriter"
 	"time"
-//	"encoding/json"
-	
+
 	"golang.org/x/net/context"
 
 	"github.com/Sirupsen/logrus"
@@ -157,11 +156,6 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		getContainerList()
 	} 
 
-	
-
-
-
-
 //=================edit
 	if opts.v{
 
@@ -211,9 +205,9 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		        name:=" "
 
         	        if(len(response.Name)>=12){
-                        name = response.Name[:12]
+	                        name = response.Name[:12]
                        	}else{
-                       	name = response.Name
+        	               	name = response.Name
                        	}	
 
 		
@@ -224,10 +218,8 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 				fmt.Fprintf(w, format,
 				name, errStr, errStr,errStr,errStr,errStr,errStr,errStr,
 				)
-				//err := s.err
-				//return err
 			}else{
-			fmt.Fprintf(w, format,
+				fmt.Fprintf(w, format,
 				name,
 				response.Driver,
 				readLat["value"],
@@ -244,7 +236,6 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		
 		}
 
-	//	w.Flush()
 	}
         close(closeChan)
 

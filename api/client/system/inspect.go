@@ -44,14 +44,9 @@ func NewInspectCommand(dockerCli *client.DockerCli) *cobra.Command {
 	return cmd
 }
 
-
-
-
-
 //==========================edit
 
 //GetVols returns list:(container name:attached volumes)
-
 func GetVols(dockerCli *client.DockerCli, containers []string,waitFirst *sync.WaitGroup)(map[int][]string) {
         ctx := context.Background()
         client := dockerCli.Client()
@@ -89,7 +84,7 @@ func GetVols(dockerCli *client.DockerCli, containers []string,waitFirst *sync.Wa
         return volMap
 }
 
-
+//GetVolStats returns volume stats
 func GetVolStats(dockerCli *client.DockerCli, volume string)(types.Volume,error){
 	ctx := context.Background()
 	client := dockerCli.Client()
@@ -107,25 +102,6 @@ func GetVolStats(dockerCli *client.DockerCli, volume string)(types.Volume,error)
 
 
 //===============================edit
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 func runInspect(dockerCli *client.DockerCli, opts inspectOptions) error {
