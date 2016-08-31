@@ -188,19 +188,23 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 	
 		for i:=0;i<len(volMap);i++{
 		fmt.Println("CONTAINER:"+volMap[i][0])
-		io.WriteString(w,"Vol_name\tDriver\tRD_latency(us)\tWR_latency(us)\tRD_outstnd\tWR_outstnd\tRD_blk_size\tWR_blk_size\n")
+		io.WriteString(w,"Vol_name\tDriver\tRD_latency(us)\tWR_latency(us)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
 
 		for j:=1;j<len(volMap[i]);j++{
 			response,err:=system.GetVolStats(dockerCli,volMap[i][j])
 
 			md,ok := response.Status["iostats"].(map[string]interface{})
 
-			readLat,okread:= md["Read Latency (us)"].(map[string]interface{})
-			writeLat,okwrite:= md["Write Latency (us)"].(map[string]interface{})
-			readOuts,okreado:=md["Average number of outstanding read requests"].(map[string]interface{})
-		        writeOuts,okwriteo:=md["Average number of outstanding write requests"].(map[string]interface{})
-			readBlkSize,okreadblk:=md["Read request size"].(map[string]interface{})
-			writeBlkSize,okwriteblk:=md["Write request size"].(map[string]interface{})
+			readLat,okread:= 		md["Read Latency (us)"].(map[string]interface{})
+			writeLat,okwrite:= 		md["Write Latency (us)"].(map[string]interface{})
+			avgReadLat,okavgread:=		md["Read latency"].(map[string]interface{})
+			avgWriteLat,okavgwrite:=	md["Write latency"].(map[string]interface{})
+			avgReadReqPers,okavgreadreq:=	md["Average read requests per second"].(map[string]interface{})
+			avgWriteReqPers,okavgwritereq:=	md["Average write requests per second"].(map[string]interface{})
+			readOuts,okreado:=		md["Average number of outstanding read requests"].(map[string]interface{})
+		        writeOuts,okwriteo:=		md["Average number of outstanding write requests"].(map[string]interface{})
+			readBlkSize,okreadblk:=		md["Read request size"].(map[string]interface{})
+			writeBlkSize,okwriteblk:=	md["Write request size"].(map[string]interface{})
 
 		        name:=" "
 
@@ -211,12 +215,12 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
                        	}	
 
 		
-			format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
-			if (err!=nil || ok!=true || okread!=true || okwrite!=true || okreado!=true || okwriteo!=true || okreadblk!=true || okwriteblk!=true) {
-				format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+			format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+			if (err!=nil || ok!=true || okread!=true || okwrite!=true || okreado!=true || okwriteo!=true || okreadblk!=true || okwriteblk!=true||okavgread!=true||okavgwrite!=true||okavgreadreq!=true||okavgwritereq!=true) {
+				format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 				errStr := "--"
 				fmt.Fprintf(w, format,
-				name, errStr, errStr,errStr,errStr,errStr,errStr,errStr,
+				name, errStr, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
 				)
 			}else{
 				fmt.Fprintf(w, format,
@@ -224,10 +228,14 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 				response.Driver,
 				readLat["value"],
 				writeLat["value"],
-				readOuts["value"],
-				writeOuts["value"],
+				avgReadLat["value"],
+				avgWriteLat["value"],
+				avgReadReqPers["value"],
+				avgWriteReqPers["value"],
 				readBlkSize["value"],
 				writeBlkSize["value"],
+				readOuts["value"],
+				writeOuts["value"],
 				)
 			}
 			w.Flush()
