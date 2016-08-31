@@ -238,12 +238,13 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 				writeBlkSize["value"],
 				)
 			}
+			w.Flush()
 
 		}
 		
 		}
 
-		w.Flush()
+	//	w.Flush()
 	}
         close(closeChan)
 
