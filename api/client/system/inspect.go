@@ -44,66 +44,6 @@ func NewInspectCommand(dockerCli *client.DockerCli) *cobra.Command {
 	return cmd
 }
 
-/*
-//==========================edit
-
-//GetVols returns list:(container name:attached volumes)
-func GetVols(dockerCli *client.DockerCli, containers []string,waitFirst *sync.WaitGroup)(map[int][]string) {
-        ctx := context.Background()
-        client := dockerCli.Client()
-
-
-        defer func() {
-                waitFirst.Done()
-        }()
-
-        i:=0
-        volMap := make(map[int][]string)
-
-        //for all the containers passed in the command
-        for _,name := range containers{
-                id:=name
-                response, err:= client.ContainerInspect(ctx, id)
-
-                if(err != nil){
-                fmt.Println("error in GetVols")
-                }else{
-									//fmt.Println("Container Name:"+response.Name)
-	                //fmt.Println("Volume Name:"+response.Mounts[0].Name)
-	                //fmt.Println("Driver: "+response.Mounts[0].Driver)
-
-	                volMap[i]=[]string{response.Name}
-	                //for multiple number of mounts in the same container
-	                for j:=0;j<len(response.Mounts);j++{
-	                                //volMap[i]=[]string{response.Name,response.Mounts[j].Name}
-	                                volMap[i]=append(volMap[i],response.Mounts[j].Name)
-	                        }
-	                i++
-	                }//for
-								}
-
-        return volMap
-}
-
-//GetVolStats returns volume stats
-func GetVolStats(dockerCli *client.DockerCli, volume string)(types.Volume,error){
-	ctx := context.Background()
-	client := dockerCli.Client()
-
-	//defer func(){
-	//	waitFirst.Done()
-	//}()
-
-	response, err := client.VolumeInspect(ctx, volume)
-			if (err!=nil){
-				fmt.Println("error in GetVolStats")
-				}	
-				return response,err
-	}
-
-
-//===============================edit
-*/
 
 func runInspect(dockerCli *client.DockerCli, opts inspectOptions) error {
 	ctx := context.Background()

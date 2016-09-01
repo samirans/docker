@@ -63,8 +63,8 @@ func (s *stats) isKnownContainer(cid string) (int, bool) {
 	return -1, false
 }
 
-//==========edit
-//type volumeStats struct{}
+//volStats is a struct for storing a standard set of stats (future use)
+//type volStats struct{}
 //	readLat		string
 //	writeLat	string
 //	avgReadLat	string
@@ -83,9 +83,8 @@ type volumeStats struct{
 	mu		sync.Mutex
 	container	string
 	volumes		[]string//for more than one volume per container
-	volumeStats	[]map[string]interface{}
+	volumeStats	[]map[string]interface{}//storing volume stats for all volumes as an arra of maps
 	err		error
-//	vs		[]*volumeStats
 }
 
 type vstats struct{
@@ -120,8 +119,6 @@ func (s *vstats) isKnownContainer_v(cid string) (int, bool) {
 	return -1, false
 }
 
-//===================
-
 func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,streamStats bool,waitFirst *sync.WaitGroup){
 	logrus.Debugf("collecting volume names for container %s",s.container)
 
@@ -143,51 +140,26 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 		return
 	}
 
-	//go func(){
-	//for{
-		for i:=0;i< len(volList.Mounts);i++{
-			s.mu.Lock()
-			s.volumes = append (s.volumes,volList.Mounts[i].Name)//add all the volume names to volumes
-			response, err := cli.VolumeInspect(ctx, s.volumes[i])
-			if (err!=nil){
-				s.err = err
-				s.mu.Unlock()
-				return
-				}
-				ret,ok:=response.Status["iostats"].(map[string]interface{})
-				if ok{
-				s.volumeStats = append(s.volumeStats,ret)
-				}
-				s.mu.Unlock()
-			
-		}
-			if !streamStats {
-				return
-			}
-	//	}//infinite for
-//	}()//go
 
-/*		for{
-			select{
-			case <-time.After(2*time.Second):
-				s.mu.Lock()
-				s.container=""
-				s.volumes=[]string{""}
-				s.volumeStats=nil
-				s.err = errors.New("timeout waiting for stats")
-				s.mu.Unlock()
-				if !getFirst {
-					getFirst = true
-					waitFirst.Done()
-				}
+	for i:=0;i< len(volList.Mounts);i++{
+		s.mu.Lock()
+		s.volumes = append (s.volumes,volList.Mounts[i].Name)//add all the volume names to volumes
+		response, err := cli.VolumeInspect(ctx, s.volumes[i])
+		if (err!=nil){
+			s.err = err
+			s.mu.Unlock()
+			return
 			}
-			if !streamStats {
-				return
+			ret,ok:=response.Status["iostats"].(map[string]interface{})
+			if ok{
+			s.volumeStats = append(s.volumeStats,ret)
 			}
+			s.mu.Unlock()
+	}
+	if !streamStats {
+			return
 		}
-*/
-
-}//CollectVol
+	}//CollectVol
 
 
 func (s *volumeStats) DisplayVol(w io.Writer) error{
@@ -196,55 +168,44 @@ func (s *volumeStats) DisplayVol(w io.Writer) error{
 
 
 	for i,_:=range s.volumes{
-/*		if s.err != nil {
-			fmt.Println("Error")
-			err := s.err
-			return err
+	
+		name:=" "
+		if(len(s.volumes[i])>=12){
+			name = s.volumes[i][:12]
+		}else{
+			name = s.volumes[i]
+		}	
+
+		format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+	
+		if (s.err!=nil) {
+			format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+			errStr := "--"
+			fmt.Fprintf(w, format,
+			name,errStr, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
+		)
+		err:=s.err
+		return err
 		}
-		fmt.Println(s.volumeStats[i])
-		fmt.Println("")
-*/
-
-
-	name:=" "
-	if(len(s.volumes[i])>=12){
-		name = s.volumes[i][:12]
-	}else{
-		name = s.volumes[i]
-	}	
-
-	format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 	
-	if (s.err!=nil) {
-	format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
-	errStr := "--"
-	fmt.Fprintf(w, format,
-	name,errStr, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
-	)
-	err:=s.err
-	return err
-	}
-	
-	fmt.Fprintf(w, format,
-			s.container,
-			name,
-			s.volumeStats[i]["readLat(µs)"],
-			s.volumeStats[i]["writeLat(µs)"],
-			s.volumeStats[i]["avgReadLat(ms)"],
-			s.volumeStats[i]["avgWriteLat(ms)"],
-			s.volumeStats[i]["avgRd/s"],
-			s.volumeStats[i]["avgWr/s"],
-			s.volumeStats[i]["avgInProgReads"],
-			s.volumeStats[i]["avgInProgWrites"],
-			s.volumeStats[i]["avgRdReqSz(bytes)"],
-			s.volumeStats[i]["avgWrReqSz(bytes)"],
-			)
-	
+		fmt.Fprintf(w, format,
+			    s.container,
+			    name,
+			    //temporarily extracting stats in this way as no standart set of stats exits
+        	            s.volumeStats[i]["readLat(µs)"],
+			    s.volumeStats[i]["writeLat(µs)"],
+			    s.volumeStats[i]["avgReadLat(ms)"],
+			    s.volumeStats[i]["avgWriteLat(ms)"],
+			    s.volumeStats[i]["avgRd/s"],
+			    s.volumeStats[i]["avgWr/s"],
+			    s.volumeStats[i]["avgInProgReads"],
+			    s.volumeStats[i]["avgInProgWrites"],
+			    s.volumeStats[i]["avgRdReqSz(bytes)"],
+			    s.volumeStats[i]["avgWrReqSz(bytes)"],
+			   )
 	}//for
- return nil
+ 	return nil
 }//DisplayVol
-//==========edit
-
 
 
 func (s *containerStats) Collect(ctx context.Context, cli client.APIClient, streamStats bool, waitFirst *sync.WaitGroup) {
