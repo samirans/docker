@@ -93,6 +93,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 	waitFirst := &sync.WaitGroup{}
 
 	cStats := stats{}
+	vStats := vstats{}
 	// getContainerList simulates creation event for all previously existing
 	// containers (only used when calling `docker stats` without arguments).
 	getContainerList := func() {
@@ -158,10 +159,90 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 
 //=================edit
 	if opts.v{
+if opts.containers == nil{
+	fmt.Println("Please provide container name(s)")
+	return nil
+	}
+	fmt.Println(opts.containers)
+	for _,name:=range opts.containers{
+		s := &volumeStats{container: name}
+		if vStats.add_v(s){
+			waitFirst.Add(1)
+			go s.CollectVol(ctx,dockerCli.Client(),!opts.noStream,waitFirst)
+			}
 
-	waitFirst.Add(1)
+	}
 
-	volMap := make(map[int][]string)
+	close(closeChan)
+	time.Sleep(1500 * time.Millisecond)
+	var errs []string
+	vStats.mu.Lock()
+	for _, c := range vStats.vs {
+		c.mu.Lock()
+		if c.err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", c.container, c.err))
+		}
+		c.mu.Unlock()
+	}
+	vStats.mu.Unlock()
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, ", "))
+	}
+
+	waitFirst.Wait()
+
+/*		w := tabwriter.NewWriter(dockerCli.Out(), 20, 1, 3, ' ', 0)
+		printHeader := func() {
+			ifopts.noStream{
+		  	fmt.Fprint(dockerCli.Out(), "\033[2J")
+				fmt.Fprint(dockerCli.Out(), "\033[H")
+			}
+			io.WriteString(w,"Vol_name\tDriver\tRD_latency(us)\tWR_latency(us)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
+		}
+*/
+	for range time.Tick(500 * time.Millisecond) {
+	//printHeader()
+	toRemove := []string{}
+	vStats.mu.Lock()
+	for _, s := range vStats.vs {
+		if err := s.DisplayVol(); err != nil{
+			logrus.Debugf("stats: got error for %s: %v", s.container, err)
+			if err == io.EOF {
+				toRemove = append(toRemove, s.container)
+			}
+		}
+	}
+	vStats.mu.Unlock()
+	for _, name := range toRemove {
+		vStats.remove_v(name)
+	}
+	if len(vStats.vs) == 0{
+		return nil
+	}
+	//w.Flush()
+	if opts.noStream {
+		break
+	}
+	select {
+	case err, ok := <-closeChan:
+		if ok {
+			if err != nil {
+				// this is suppressing "unexpected EOF" in the cli when the
+				// daemon restarts so it shutdowns cleanly
+				if err == io.ErrUnexpectedEOF {
+					return nil
+				}
+				return err
+			}
+		}
+	default:
+		// just skip
+	}
+}
+return nil
+
+//===============================================
+/*	volMap := make(map[int][]string)
 	volMap= system.GetVols(dockerCli,opts.containers,waitFirst)
 
         // Do a quick pause to detect any error with the provided list of
@@ -185,7 +266,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 	for range time.Tick(5000 * time.Millisecond) {
 		fmt.Fprint(dockerCli.Out(), "\033[2J")
 	        fmt.Fprint(dockerCli.Out(), "\033[H")
-	
+
 		for i:=0;i<len(volMap);i++{
 		fmt.Println("CONTAINER:"+volMap[i][0])
 		io.WriteString(w,"Vol_name\tDriver\tRD_latency(us)\tWR_latency(us)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
@@ -202,7 +283,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			avgReadReqPers,okavgreadreq:=	md["Average read requests per second"].(map[string]interface{})
 			avgWriteReqPers,okavgwritereq:=	md["Average write requests per second"].(map[string]interface{})
 			readOuts,okreado:=		md["Average number of outstanding read requests"].(map[string]interface{})
-		        writeOuts,okwriteo:=		md["Average number of outstanding write requests"].(map[string]interface{})
+		  writeOuts,okwriteo:=		md["Average number of outstanding write requests"].(map[string]interface{})
 			readBlkSize,okreadblk:=		md["Read request size"].(map[string]interface{})
 			writeBlkSize,okwriteblk:=	md["Write request size"].(map[string]interface{})
 
@@ -212,22 +293,22 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 	                        name = response.Name[:12]
                        	}else{
         	               	name = response.Name
-                       	}	
+                       	}
 
-		
+
 			format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 			if (err!=nil || ok!=true || okread!=true || okwrite!=true || okreado!=true || okwriteo!=true || okreadblk!=true || okwriteblk!=true||okavgread!=true||okavgwrite!=true||okavgreadreq!=true||okavgwritereq!=true) {
 				format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 				errStr := "--"
 				fmt.Fprintf(w, format,
 				name, errStr, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
+
 				)
-			}else{
 				fmt.Fprintf(w, format,
 				name,
 				response.Driver,
 				readLat["value"],
-				writeLat["value"],
+      	writeLat["value"],
 				avgReadLat["value"],
 				avgWriteLat["value"],
 				avgReadReqPers["value"],
@@ -239,15 +320,13 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 				)
 			}
 			w.Flush()
-
-		}
-		
 		}
 
+ }
 	}
-        close(closeChan)
+      close(closeChan)
 
-	return nil
+	return nil*/
 	}else{
 		// Artificially send creation events for the containers we were asked to
 		// monitor (same code path than we use when monitoring all containers).

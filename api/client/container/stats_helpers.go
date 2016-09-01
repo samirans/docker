@@ -63,6 +63,212 @@ func (s *stats) isKnownContainer(cid string) (int, bool) {
 	return -1, false
 }
 
+//==========edit
+//type volumeStats struct{}
+//	readLat		string
+//	writeLat	string
+//	avgReadLat	string
+//	avgWriteLat	string
+//	avgReadReqPers	string
+//	avgWriteReqPers	string
+//	readOuts	string
+//	writeOuts	string
+//	readBlkSize	string
+//	writeBlkSize	string
+//	vmu		sync.Mutex
+//	verr		error
+//}
+
+type volumeStats struct{
+	mu		sync.Mutex
+	container	string
+	volumes		[]string//for more than one volume per container
+	volumeStats	[]map[string]interface{}
+	err		error
+//	vs		[]*volumeStats
+}
+
+type vstats struct{
+	mu		sync.Mutex
+	vs		[]*volumeStats
+}
+
+func (s *vstats) add_v(vs *volumeStats) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.isKnownContainer_v(vs.container); !exists {
+		s.vs = append(s.vs, vs)
+		return true
+	}
+	return false
+}
+
+func (s *vstats) remove_v(id string) {
+	s.mu.Lock()
+	if i, exists := s.isKnownContainer_v(id); exists {
+		s.vs = append(s.vs[:i], s.vs[i+1:]...)
+	}
+	s.mu.Unlock()
+}
+
+func (s *vstats) isKnownContainer_v(cid string) (int, bool) {
+	for i, c := range s.vs {
+		if c.container == cid {
+			return i, true
+		}
+	}
+	return -1, false
+}
+//==========edit
+
+//==========editstart
+func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,streamStats bool,waitFirst *sync.WaitGroup){
+	logrus.Debugf("collecting volume names for container %s",s.container)
+
+	var getFirst bool
+
+	defer func() {
+		// if error happens and we get nothing of volume stats, release wait group
+		if !getFirst {
+			getFirst = true
+			waitFirst.Done()
+		}
+	}()
+
+	volList, err := cli.ContainerInspect(ctx, s.container)
+	if err != nil{
+		s.mu.Lock()
+		s.err = err
+		s.mu.Unlock()
+		return
+	}
+
+	//go func(){
+	//for{
+		for i:=0;i< len(volList.Mounts);i++{
+			s.mu.Lock()
+			s.volumes = append (s.volumes,volList.Mounts[i].Name)//add all the volume names to volumes
+			fmt.Println(s.volumes[i])
+			response, err := cli.VolumeInspect(ctx, s.volumes[i])
+			if (err!=nil){
+				s.err = err
+				s.mu.Unlock()
+				return
+				}
+				ret,ok:=response.Status["iostats"].(map[string]interface{})
+				if ok{
+				s.volumeStats = append(s.volumeStats,ret)
+				}
+				s.mu.Unlock()
+			
+		}
+			if !streamStats {
+				return
+			}
+	//	}//infinite for
+//	}()//go
+
+/*		for{
+			select{
+			case <-time.After(2*time.Second):
+				s.mu.Lock()
+				s.container=""
+				s.volumes=[]string{""}
+				s.volumeStats=nil
+				s.err = errors.New("timeout waiting for stats")
+				s.mu.Unlock()
+				if !getFirst {
+					getFirst = true
+					waitFirst.Done()
+				}
+			}
+			if !streamStats {
+				return
+			}
+		}
+*/
+
+/*
+  	response,err:=system.GetVolStats(dockerCli,volMap[i][j])
+
+		md,ok := response.Status["iostats"].(map[string]interface{})
+
+		readLat,okread:= 		md["Read Latency (us)"].(map[string]interface{})
+		writeLat,okwrite:= 		md["Write Latency (us)"].(map[string]interface{})
+		avgReadLat,okavgread:=		md["Read latency"].(map[string]interface{})
+		avgWriteLat,okavgwrite:=	md["Write latency"].(map[string]interface{})
+		avgReadReqPers,okavgreadreq:=	md["Average read requests per second"].(map[string]interface{})
+		avgWriteReqPers,okavgwritereq:=	md["Average write requests per second"].(map[string]interface{})
+		readOuts,okreado:=		md["Average number of outstanding read requests"].(map[string]interface{})
+		writeOuts,okwriteo:=		md["Average number of outstanding write requests"].(map[string]interface{})
+		readBlkSize,okreadblk:=		md["Read request size"].(map[string]interface{})
+		writeBlkSize,okwriteblk:=	md["Write request size"].(map[string]interface{})
+
+			name:=" "
+
+						if(len(response.Name)>=12){
+										name = response.Name[:12]
+									}else{
+										name = response.Name
+									}
+*/
+}//CollectVol
+
+
+func (s *volumeStats) DisplayVol() error{
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+
+	for i,_:=range s.volumes{
+		if s.err != nil {
+			fmt.Println("Error")
+			err := s.err
+			return err
+		}
+		fmt.Println(s.volumeStats[i])
+		fmt.Println("")
+
+
+	/*
+	name:=" "
+		if(len(s.volumes[i])>=12){
+			name = response.Name[:12]
+		}else{
+			name = response.Name
+		}
+	format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+	if (err!=nil || ok!=true || okread!=true || okwrite!=true || okreado!=true || okwriteo!=true || okreadblk!=true || okwriteblk!=true||okavgread!=true||okavgwrite!=true||okavgreadreq!=true||okavgwritereq!=true) {
+	format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+	errStr := "--"
+	fmt.Fprintf(w, format,
+	name, errStr, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
+	)
+	}else{
+	fmt.Fprintf(w, format,
+			name,
+			response.Driver,
+			readLat["value"],
+			writeLat["value"],
+			avgReadLat["value"],
+			avgWriteLat["value"],
+			avgReadReqPers["value"],
+			avgWriteReqPers["value"],
+			readBlkSize["value"],
+			writeBlkSize["value"],
+			readOuts["value"],
+			writeOuts["value"],
+			)
+		}
+	w.Flush()
+*/
+	}//for
+ return nil
+}//DisplayVol
+//==========edit
+
+
+
 func (s *containerStats) Collect(ctx context.Context, cli client.APIClient, streamStats bool, waitFirst *sync.WaitGroup) {
 	logrus.Debugf("collecting stats for %s", s.Name)
 	var (
