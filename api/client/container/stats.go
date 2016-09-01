@@ -168,7 +168,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			s := &volumeStats{container: name}
 			if vStats.add_v(s){
 				waitFirst.Add(1)
-				go s.CollectVol(ctx,dockerCli.Client(),!opts.noStream,waitFirst)
+				s.CollectVol(ctx,dockerCli.Client(),!opts.noStream,waitFirst)
 				}
 
 		}	
@@ -198,14 +198,14 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			fmt.Fprint(dockerCli.Out(), "\033[H")
 			}
 		
-		io.WriteString(w,"Cont_name\tVol_name\tRD_latency(µs)\tWR_latency(µs)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
+		io.WriteString(w,"Container/Volume\tRD_latency(µs)\tWR_latency(µs)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
 		}
 
 		for range time.Tick(500 * time.Millisecond) {
+			printHeader()
 			toRemove := []string{}
 			vStats.mu.Lock()
 			for _, s := range vStats.vs {
-			printHeader()
 			if err := s.DisplayVol(w); err != nil && !opts.noStream{
 				logrus.Debugf("stats: got error for %s: %v", s.container, err)
 				if err == io.EOF {

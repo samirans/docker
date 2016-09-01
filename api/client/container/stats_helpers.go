@@ -120,6 +120,7 @@ func (s *vstats) isKnownContainer_v(cid string) (int, bool) {
 }
 
 func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,streamStats bool,waitFirst *sync.WaitGroup){
+
 	logrus.Debugf("collecting volume names for container %s",s.container)
 
 	var getFirst bool
@@ -131,7 +132,7 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 			waitFirst.Done()
 		}
 	}()
-
+	
 	volList, err := cli.ContainerInspect(ctx, s.container)
 	if err != nil{
 		s.mu.Lock()
@@ -159,6 +160,7 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 	if !streamStats {
 			return
 		}
+
 	}//CollectVol
 
 
@@ -176,21 +178,20 @@ func (s *volumeStats) DisplayVol(w io.Writer) error{
 			name = s.volumes[i]
 		}	
 
-		format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+		format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 	
 		if (s.err!=nil) {
-			format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+			format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 			errStr := "--"
 			fmt.Fprintf(w, format,
-			name,errStr, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
+			name, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
 		)
 		err:=s.err
 		return err
 		}
 	
 		fmt.Fprintf(w, format,
-			    s.container,
-			    name,
+			    s.container+"/"+name,
 			    //temporarily extracting stats in this way as no standart set of stats exits
         	            s.volumeStats[i]["readLat(µs)"],
 			    s.volumeStats[i]["writeLat(µs)"],
@@ -198,10 +199,11 @@ func (s *volumeStats) DisplayVol(w io.Writer) error{
 			    s.volumeStats[i]["avgWriteLat(ms)"],
 			    s.volumeStats[i]["avgRd/s"],
 			    s.volumeStats[i]["avgWr/s"],
-			    s.volumeStats[i]["avgInProgReads"],
-			    s.volumeStats[i]["avgInProgWrites"],
 			    s.volumeStats[i]["avgRdReqSz(bytes)"],
 			    s.volumeStats[i]["avgWrReqSz(bytes)"],
+                            s.volumeStats[i]["avgInProgReads"],
+                            s.volumeStats[i]["avgInProgWrites"],
+
 			   )
 	}//for
  	return nil
