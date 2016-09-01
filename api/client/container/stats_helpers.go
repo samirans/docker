@@ -119,9 +119,9 @@ func (s *vstats) isKnownContainer_v(cid string) (int, bool) {
 	}
 	return -1, false
 }
-//==========edit
 
-//==========editstart
+//===================
+
 func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,streamStats bool,waitFirst *sync.WaitGroup){
 	logrus.Debugf("collecting volume names for container %s",s.container)
 
@@ -148,7 +148,6 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 		for i:=0;i< len(volList.Mounts);i++{
 			s.mu.Lock()
 			s.volumes = append (s.volumes,volList.Mounts[i].Name)//add all the volume names to volumes
-			fmt.Println(s.volumes[i])
 			response, err := cli.VolumeInspect(ctx, s.volumes[i])
 			if (err!=nil){
 				s.err = err
@@ -188,80 +187,59 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 		}
 */
 
-/*
-  	response,err:=system.GetVolStats(dockerCli,volMap[i][j])
-
-		md,ok := response.Status["iostats"].(map[string]interface{})
-
-		readLat,okread:= 		md["Read Latency (us)"].(map[string]interface{})
-		writeLat,okwrite:= 		md["Write Latency (us)"].(map[string]interface{})
-		avgReadLat,okavgread:=		md["Read latency"].(map[string]interface{})
-		avgWriteLat,okavgwrite:=	md["Write latency"].(map[string]interface{})
-		avgReadReqPers,okavgreadreq:=	md["Average read requests per second"].(map[string]interface{})
-		avgWriteReqPers,okavgwritereq:=	md["Average write requests per second"].(map[string]interface{})
-		readOuts,okreado:=		md["Average number of outstanding read requests"].(map[string]interface{})
-		writeOuts,okwriteo:=		md["Average number of outstanding write requests"].(map[string]interface{})
-		readBlkSize,okreadblk:=		md["Read request size"].(map[string]interface{})
-		writeBlkSize,okwriteblk:=	md["Write request size"].(map[string]interface{})
-
-			name:=" "
-
-						if(len(response.Name)>=12){
-										name = response.Name[:12]
-									}else{
-										name = response.Name
-									}
-*/
 }//CollectVol
 
 
-func (s *volumeStats) DisplayVol() error{
+func (s *volumeStats) DisplayVol(w io.Writer) error{
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 
 	for i,_:=range s.volumes{
-		if s.err != nil {
+/*		if s.err != nil {
 			fmt.Println("Error")
 			err := s.err
 			return err
 		}
 		fmt.Println(s.volumeStats[i])
 		fmt.Println("")
+*/
 
 
-	/*
 	name:=" "
-		if(len(s.volumes[i])>=12){
-			name = response.Name[:12]
-		}else{
-			name = response.Name
-		}
+	if(len(s.volumes[i])>=12){
+		name = s.volumes[i][:12]
+	}else{
+		name = s.volumes[i]
+	}	
+
 	format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
-	if (err!=nil || ok!=true || okread!=true || okwrite!=true || okreado!=true || okwriteo!=true || okreadblk!=true || okwriteblk!=true||okavgread!=true||okavgwrite!=true||okavgreadreq!=true||okavgwritereq!=true) {
+	
+	if (s.err!=nil) {
 	format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 	errStr := "--"
 	fmt.Fprintf(w, format,
-	name, errStr, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
+	name,errStr, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
 	)
-	}else{
+	err:=s.err
+	return err
+	}
+	
 	fmt.Fprintf(w, format,
+			s.container,
 			name,
-			response.Driver,
-			readLat["value"],
-			writeLat["value"],
-			avgReadLat["value"],
-			avgWriteLat["value"],
-			avgReadReqPers["value"],
-			avgWriteReqPers["value"],
-			readBlkSize["value"],
-			writeBlkSize["value"],
-			readOuts["value"],
-			writeOuts["value"],
+			s.volumeStats[i]["readLat(µs)"],
+			s.volumeStats[i]["writeLat(µs)"],
+			s.volumeStats[i]["avgReadLat(ms)"],
+			s.volumeStats[i]["avgWriteLat(ms)"],
+			s.volumeStats[i]["avgRd/s"],
+			s.volumeStats[i]["avgWr/s"],
+			s.volumeStats[i]["avgInProgReads"],
+			s.volumeStats[i]["avgInProgWrites"],
+			s.volumeStats[i]["avgRdReqSz(bytes)"],
+			s.volumeStats[i]["avgWrReqSz(bytes)"],
 			)
-		}
-	w.Flush()
-*/
+	
 	}//for
  return nil
 }//DisplayVol

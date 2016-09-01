@@ -159,11 +159,11 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 
 //=================edit
 	if opts.v{
-if opts.containers == nil{
+if(len(opts.containers)) == 0{
 	fmt.Println("Please provide container name(s)")
 	return nil
 	}
-	fmt.Println(opts.containers)
+
 	for _,name:=range opts.containers{
 		s := &volumeStats{container: name}
 		if vStats.add_v(s){
@@ -191,21 +191,22 @@ if opts.containers == nil{
 
 	waitFirst.Wait()
 
-/*		w := tabwriter.NewWriter(dockerCli.Out(), 20, 1, 3, ' ', 0)
-		printHeader := func() {
-			ifopts.noStream{
-		  	fmt.Fprint(dockerCli.Out(), "\033[2J")
-				fmt.Fprint(dockerCli.Out(), "\033[H")
-			}
-			io.WriteString(w,"Vol_name\tDriver\tRD_latency(us)\tWR_latency(us)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
+	w := tabwriter.NewWriter(dockerCli.Out(), 5, 1, 3, ' ', 0)
+	printHeader := func() {
+		if !opts.noStream{
+	  	fmt.Fprint(dockerCli.Out(), "\033[2J")
+		fmt.Fprint(dockerCli.Out(), "\033[H")
 		}
-*/
+		
+		io.WriteString(w,"Cont_name\tVol_name\tRD_latency(µs)\tWR_latency(µs)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
+		}
+
 	for range time.Tick(500 * time.Millisecond) {
-	//printHeader()
 	toRemove := []string{}
 	vStats.mu.Lock()
 	for _, s := range vStats.vs {
-		if err := s.DisplayVol(); err != nil{
+		printHeader()
+		if err := s.DisplayVol(w); err != nil && !opts.noStream{
 			logrus.Debugf("stats: got error for %s: %v", s.container, err)
 			if err == io.EOF {
 				toRemove = append(toRemove, s.container)
@@ -219,7 +220,7 @@ if opts.containers == nil{
 	if len(vStats.vs) == 0{
 		return nil
 	}
-	//w.Flush()
+	w.Flush()
 	if opts.noStream {
 		break
 	}
@@ -368,7 +369,7 @@ return nil
 			fmt.Fprint(dockerCli.Out(), "\033[2J")
 			fmt.Fprint(dockerCli.Out(), "\033[H")
 		}
-		io.WriteString(w, "CONTAINER\tCPU %\tMEM USAGE / LIMIT\tMEM %\tNET I/O\tBLOCK I/O\tPIDS\n")
+		io.WriteString(w, "\nCONTAINER\tCPU %\tMEM USAGE / LIMIT\tMEM %\tNET I/O\tBLOCK I/O\tPIDS\n")
 	}
 
 	for range time.Tick(500 * time.Millisecond) {
