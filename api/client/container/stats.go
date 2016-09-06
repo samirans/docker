@@ -191,14 +191,14 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 
 		waitFirst.Wait()
 
-		w := tabwriter.NewWriter(dockerCli.Out(), 5, 1, 3, ' ', 0)
+		//w := tabwriter.NewWriter(dockerCli.Out(), 5, 1, 3, ' ', 0)
 		printHeader := func() {
 			if !opts.noStream{
 		  	fmt.Fprint(dockerCli.Out(), "\033[2J")
 			fmt.Fprint(dockerCli.Out(), "\033[H")
 			}
 		
-		io.WriteString(w,"Container/Volume\tRD_latency(µs)\tWR_latency(µs)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
+		//io.WriteString(w,"Container/Volume\tRD_latency(µs)\tWR_latency(µs)\tAvg_rd_lat(ms)\tAvg_wr_lat(ms)\t#Avg_rd_req/s\t#Avg_wr_req/s\tAvg_rd_blk_size(b)\tAvg_wr_blk_size(b)\tAvg_rd_outstnd\tAvg_wr_outstnd\n")
 		}
 
 		for range time.Tick(500 * time.Millisecond) {
@@ -206,7 +206,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			toRemove := []string{}
 			vStats.mu.Lock()
 			for _, s := range vStats.vs {
-			if err := s.DisplayVol(w); err != nil && !opts.noStream{
+			if err := s.DisplayVol(); err != nil && !opts.noStream{
 				logrus.Debugf("stats: got error for %s: %v", s.container, err)
 				if err == io.EOF {
 				toRemove = append(toRemove, s.container)
@@ -220,7 +220,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		if len(vStats.vs) == 0{
 			return nil
 		}
-		w.Flush()
+		//w.Flush()
 		if opts.noStream {
 			break
 		}

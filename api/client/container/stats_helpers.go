@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"sort"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/engine-api/client"
@@ -140,8 +141,8 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 		s.mu.Unlock()
 		return
 	}
-
-
+//go func(){
+//for{
 	for i:=0;i< len(volList.Mounts);i++{
 		s.mu.Lock()
 		s.volumes = append (s.volumes,volList.Mounts[i].Name)//add all the volume names to volumes
@@ -149,7 +150,9 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 		if (err!=nil){
 			s.err = err
 			s.mu.Unlock()
-			return
+			time.Sleep(100 * time.Millisecond)
+			continue
+			//return
 			}
 			ret,ok:=response.Status["iostats"].(map[string]interface{})
 			if ok{
@@ -160,11 +163,12 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 	if !streamStats {
 			return
 		}
-
+//}
+//}()//go
 	}//CollectVol
 
 
-func (s *volumeStats) DisplayVol(w io.Writer) error{
+func (s *volumeStats) DisplayVol() error{
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -178,19 +182,18 @@ func (s *volumeStats) DisplayVol(w io.Writer) error{
 			name = s.volumes[i]
 		}	
 
-		format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+		//format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 	
 		if (s.err!=nil) {
-			format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
-			errStr := "--"
-			fmt.Fprintf(w, format,
-			name, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
-		)
+		//	format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+		//	errStr := "--"
+		//	fmt.Fprintf(w, format,
+		//	name, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
+		//)
 		err:=s.err
 		return err
 		}
-	
-		fmt.Fprintf(w, format,
+/*		fmt.Fprintf(w, format,
 			    s.container+"/"+name,
 			    //temporarily extracting stats in this way as no standart set of stats exits
         	            s.volumeStats[i]["readLat(µs)"],
@@ -205,6 +208,26 @@ func (s *volumeStats) DisplayVol(w io.Writer) error{
                             s.volumeStats[i]["avgInProgWrites"],
 
 			   )
+*/
+
+	var keys []string		
+
+	fmt.Println("Container:"+s.container)
+	fmt.Println("Volume:"+name)
+	for j,_ := range s.volumeStats[i]{
+		keys = append(keys,j)
+		sort.Strings(keys)
+		}
+
+	for _,k := range keys{
+		fmt.Printf("%13.12s",k)
+	}
+	fmt.Print("\n")
+	for _,val:=range keys{
+		fmt.Printf("%13.12s",s.volumeStats[i][val].(string))
+	}
+	fmt.Print("\n")
+
 	}//for
  	return nil
 }//DisplayVol
@@ -246,7 +269,7 @@ func (s *containerStats) Collect(ctx context.Context, cli client.APIClient, stre
 				u <- err
 				if err == io.EOF {
 					break
-				}
+					}
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
