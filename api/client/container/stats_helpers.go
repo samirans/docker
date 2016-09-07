@@ -190,9 +190,8 @@ func (s *volumeStats) DisplayVol() error{
 		fmt.Println("Volume:"+name)
 		for j,_ := range s.volumeStats[i]{
 			keys = append(keys,j)
-			sort.Strings(keys)
 		}
-
+		sort.Strings(keys)
 		for _,k := range keys{
 			fmt.Printf("%-14.13s",k)
 		}
