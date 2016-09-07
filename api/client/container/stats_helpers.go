@@ -141,8 +141,6 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 		s.mu.Unlock()
 		return
 	}
-//go func(){
-//for{
 	for i:=0;i< len(volList.Mounts);i++{
 		s.mu.Lock()
 		s.volumes = append (s.volumes,volList.Mounts[i].Name)//add all the volume names to volumes
@@ -163,15 +161,13 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 	if !streamStats {
 			return
 		}
-//}
-//}()//go
 	}//CollectVol
 
 
 func (s *volumeStats) DisplayVol() error{
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
+	
 
 	for i,_:=range s.volumes{
 	
@@ -182,33 +178,11 @@ func (s *volumeStats) DisplayVol() error{
 			name = s.volumes[i]
 		}	
 
-		//format := "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 	
 		if (s.err!=nil) {
-		//	format = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
-		//	errStr := "--"
-		//	fmt.Fprintf(w, format,
-		//	name, errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,errStr,
-		//)
 		err:=s.err
 		return err
 		}
-/*		fmt.Fprintf(w, format,
-			    s.container+"/"+name,
-			    //temporarily extracting stats in this way as no standart set of stats exits
-        	            s.volumeStats[i]["readLat(µs)"],
-			    s.volumeStats[i]["writeLat(µs)"],
-			    s.volumeStats[i]["avgReadLat(ms)"],
-			    s.volumeStats[i]["avgWriteLat(ms)"],
-			    s.volumeStats[i]["avgRd/s"],
-			    s.volumeStats[i]["avgWr/s"],
-			    s.volumeStats[i]["avgRdReqSz(bytes)"],
-			    s.volumeStats[i]["avgWrReqSz(bytes)"],
-                            s.volumeStats[i]["avgInProgReads"],
-                            s.volumeStats[i]["avgInProgWrites"],
-
-			   )
-*/
 
 	var keys []string		
 
@@ -220,15 +194,14 @@ func (s *volumeStats) DisplayVol() error{
 		}
 
 	for _,k := range keys{
-		fmt.Printf("%13.12s",k)
+		fmt.Printf("%14.13s",k)
 	}
 	fmt.Print("\n")
 	for _,val:=range keys{
-		fmt.Printf("%13.12s",s.volumeStats[i][val].(string))
+		fmt.Printf("%14.13s",s.volumeStats[i][val].(string))
 	}
 	fmt.Print("\n")
 
-	}//for
  	return nil
 }//DisplayVol
 
