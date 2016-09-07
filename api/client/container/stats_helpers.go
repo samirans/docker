@@ -151,12 +151,12 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 			time.Sleep(100 * time.Millisecond)
 			continue
 			//return
-			}
-			ret,ok:=response.Status["iostats"].(map[string]interface{})
-			if ok{
+		}
+		ret,ok:=response.Status["iostats"].(map[string]interface{})
+		if ok{
 			s.volumeStats = append(s.volumeStats,ret)
-			}
-			s.mu.Unlock()
+		}
+		s.mu.Unlock()
 	}
 	if !streamStats {
 			return
@@ -180,29 +180,30 @@ func (s *volumeStats) DisplayVol() error{
 
 	
 		if (s.err!=nil) {
-		err:=s.err
-		return err
+			err:=s.err
+			return err
 		}
 
-	var keys []string		
+		var keys []string		
 
-	fmt.Println("Container:"+s.container)
-	fmt.Println("Volume:"+name)
-	for j,_ := range s.volumeStats[i]{
-		keys = append(keys,j)
-		sort.Strings(keys)
+		fmt.Println("Container:"+s.container)
+		fmt.Println("Volume:"+name)
+		for j,_ := range s.volumeStats[i]{
+			keys = append(keys,j)
+			sort.Strings(keys)
 		}
 
-	for _,k := range keys{
-		fmt.Printf("%14.13s",k)
+		for _,k := range keys{
+			fmt.Printf("%-14.13s",k)
+		}
+		fmt.Print("\n")
+		for _,val:=range keys{
+			fmt.Printf("%-14.13s",s.volumeStats[i][val].(string))
+		}
+		fmt.Print("\n")
 	}
-	fmt.Print("\n")
-	for _,val:=range keys{
-		fmt.Printf("%14.13s",s.volumeStats[i][val].(string))
-	}
-	fmt.Print("\n")
-
  	return nil
+
 }//DisplayVol
 
 

@@ -169,7 +169,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			if vStats.add_v(s){
 				waitFirst.Add(1)
 				s.CollectVol(ctx,dockerCli.Client(),!opts.noStream,waitFirst)
-				}
+			}
 
 		}	
 
@@ -193,8 +193,8 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 
 		printHeader := func() {
 			if !opts.noStream{
-		  	fmt.Fprint(dockerCli.Out(), "\033[2J")
-			fmt.Fprint(dockerCli.Out(), "\033[H")
+			  	fmt.Fprint(dockerCli.Out(), "\033[2J")
+				fmt.Fprint(dockerCli.Out(), "\033[H")
 			}
 		
 		}
@@ -204,12 +204,12 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			toRemove := []string{}
 			vStats.mu.Lock()
 			for _, s := range vStats.vs {
-			if err := s.DisplayVol(); err != nil && !opts.noStream{
-				logrus.Debugf("stats: got error for %s: %v", s.container, err)
-				if err == io.EOF {
-				toRemove = append(toRemove, s.container)
-				}
-			}	
+				if err := s.DisplayVol(); err != nil && !opts.noStream{
+					logrus.Debugf("stats: got error for %s: %v", s.container, err)
+					if err == io.EOF {
+						toRemove = append(toRemove, s.container)
+					}
+				}	
 			}
 		vStats.mu.Unlock()
 		for _, name := range toRemove {
