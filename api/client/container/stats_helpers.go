@@ -119,73 +119,55 @@ func (s *vstats) isKnownContainer_v(cid string) (int, bool) {
 	}
 	return -1, false
 }
-
-func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,streamStats bool,waitFirst *sync.WaitGroup){
-
+func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,streamStats bool){
 	logrus.Debugf("collecting volume names for container %s",s.container)
-
 	var getFirst bool
-
 	defer func() {
 		// if error happens and we get nothing of volume stats, release wait group
 		if !getFirst {
 			getFirst = true
-			waitFirst.Done()
 		}
 	}()
-	
 	volList, err := cli.ContainerInspect(ctx, s.container)
 	if err != nil{
-		s.mu.Lock()
 		s.err = err
-		s.mu.Unlock()
 		return
 	}
 	for i:=0;i< len(volList.Mounts);i++{
-		s.mu.Lock()
-		s.volumes = append (s.volumes,volList.Mounts[i].Name)//add all the volume names to volumes
+		s.volumes = append(s.volumes,volList.Mounts[i].Name)//add all the volume names to s.volumes
+	}
+	if !streamStats {
+			return
+	}
+}//CollectVol
+
+func (s *volumeStats) CollectVolStats(ctx context.Context,cli client.APIClient){
+	for i:=0;i<len(s.volumes);i++{
 		response, err := cli.VolumeInspect(ctx, s.volumes[i])
 		if (err!=nil){
 			s.err = err
-			s.mu.Unlock()
-			time.Sleep(100 * time.Millisecond)
-			continue
-			//return
+			return
 		}
 		ret,ok:=response.Status["iostats"].(map[string]interface{})
 		if ok{
 			s.volumeStats = append(s.volumeStats,ret)
 		}
-		s.mu.Unlock()
 	}
-	if !streamStats {
-			return
-		}
-	}//CollectVol
-
+}
 
 func (s *volumeStats) DisplayVol() error{
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	
-
 	for i,_:=range s.volumes{
-	
 		name:=" "
 		if(len(s.volumes[i])>=12){
 			name = s.volumes[i][:12]
 		}else{
 			name = s.volumes[i]
 		}	
-
-	
 		if (s.err!=nil) {
 			err:=s.err
 			return err
 		}
-
 		var keys []string		
-
 		fmt.Println("Container:"+s.container)
 		fmt.Println("Volume:"+name)
 		for j,_ := range s.volumeStats[i]{
@@ -202,7 +184,6 @@ func (s *volumeStats) DisplayVol() error{
 		fmt.Print("\n")
 	}
  	return nil
-
 }//DisplayVol
 
 

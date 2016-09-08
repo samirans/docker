@@ -163,34 +163,40 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			fmt.Println("Please provide container name(s)")
 			return nil
 		}
-
+				
 		for _,name:=range opts.containers{
 			s := &volumeStats{container: name}
 			if vStats.add_v(s){
-				waitFirst.Add(1)
-				s.CollectVol(ctx,dockerCli.Client(),!opts.noStream,waitFirst)
+				s.CollectVol(ctx,dockerCli.Client(),!opts.noStream)
+			}	
+		}
+		doneChan := make(chan bool)
+		go func(){
+		for{
+			for _,s:=range vStats.vs{
+				//s.mu.Lock()
+				if s.err != nil{
+					fmt.Println(s.err)
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
+				s.CollectVolStats(ctx,dockerCli.Client())
+				//s.mu.Unlock()
 			}
-
-		}	
+			doneChan<-true
+		}
+		}()//go
 
 		close(closeChan)
-		time.Sleep(1500 * time.Millisecond)
 		var errs []string
-		vStats.mu.Lock()
 		for _, c := range vStats.vs {
-			c.mu.Lock()
 			if c.err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", c.container, c.err))
 			}
-			c.mu.Unlock()
 		}
-		vStats.mu.Unlock()
 		if len(errs) > 0 {
 			return fmt.Errorf("%s", strings.Join(errs, ", "))
 		}
-
-		waitFirst.Wait()
-
 		printHeader := func() {
 			if !opts.noStream{
 			  	fmt.Fprint(dockerCli.Out(), "\033[2J")
@@ -198,20 +204,23 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			}
 		
 		}
-
 		for range time.Tick(500 * time.Millisecond) {
+			if !<-doneChan{
+				time.Sleep(100*time.Millisecond)
+				continue
+			}
 			printHeader()
 			toRemove := []string{}
-			vStats.mu.Lock()
 			for _, s := range vStats.vs {
+				//s.mu.Lock()
 				if err := s.DisplayVol(); err != nil && !opts.noStream{
 					logrus.Debugf("stats: got error for %s: %v", s.container, err)
 					if err == io.EOF {
 						toRemove = append(toRemove, s.container)
 					}
-				}	
+				}
+				//s.mu.Unlock()	
 			}
-		vStats.mu.Unlock()
 		for _, name := range toRemove {
 			vStats.remove_v(name)
 		}
