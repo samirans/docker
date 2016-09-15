@@ -167,23 +167,26 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		for _,name:=range opts.containers{
 			s := &volumeStats{container: name}
 			if vStats.add_v(s){
-				s.CollectVol(ctx,dockerCli.Client(),!opts.noStream)
+				//collects list of volumes for each container
+				s.CollectVol(ctx,dockerCli.Client())
 			}	
 		}
 		doneChan := make(chan bool)
 		go func(){
 		for{
 			for _,s:=range vStats.vs{
-				//s.mu.Lock()
 				if s.err != nil{
 					fmt.Println(s.err)
 					time.Sleep(100 * time.Millisecond)
 					continue
 				}
+				//collects volume stats for each volume
 				s.CollectVolStats(ctx,dockerCli.Client())
-				//s.mu.Unlock()
 			}
 			doneChan<-true
+			if opts.noStream{
+				break
+			}
 		}
 		}()//go
 
@@ -212,14 +215,12 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			printHeader()
 			toRemove := []string{}
 			for _, s := range vStats.vs {
-				//s.mu.Lock()
 				if err := s.DisplayVol(); err != nil && !opts.noStream{
 					logrus.Debugf("stats: got error for %s: %v", s.container, err)
 					if err == io.EOF {
 						toRemove = append(toRemove, s.container)
 					}
 				}
-				//s.mu.Unlock()	
 			}
 		for _, name := range toRemove {
 			vStats.remove_v(name)

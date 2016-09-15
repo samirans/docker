@@ -119,11 +119,10 @@ func (s *vstats) isKnownContainer_v(cid string) (int, bool) {
 	}
 	return -1, false
 }
-func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,streamStats bool){
+func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient){
 	logrus.Debugf("collecting volume names for container %s",s.container)
 	var getFirst bool
 	defer func() {
-		// if error happens and we get nothing of volume stats, release wait group
 		if !getFirst {
 			getFirst = true
 		}
@@ -135,9 +134,6 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient,stream
 	}
 	for i:=0;i< len(volList.Mounts);i++{
 		s.volumes = append(s.volumes,volList.Mounts[i].Name)//add all the volume names to s.volumes
-	}
-	if !streamStats {
-			return
 	}
 }//CollectVol
 
