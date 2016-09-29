@@ -171,9 +171,10 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 				s.CollectVol(ctx,dockerCli.Client())
 			}	
 		}
-		doneChan := make(chan bool)
 		go func(){
-		for{
+		for{	
+			vStats.mu.Lock()
+			//fmt.Println("go func locked vStats")
 			for _,s:=range vStats.vs{
 				if s.err != nil{
 					fmt.Println(s.err)
@@ -183,20 +184,25 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 				//collects volume stats for each volume
 				s.CollectVolStats(ctx,dockerCli.Client())
 			}
-			doneChan<-true
+			vStats.mu.Unlock()
+			//fmt.Println("go func unlocked vStats..sleeping")
+			time.Sleep(300*time.Millisecond)
 			if opts.noStream{
 				break
 			}
 		}
 		}()//go
-
 		close(closeChan)
 		var errs []string
+		vStats.mu.Lock()
+		//fmt.Println("vstats locked")
 		for _, c := range vStats.vs {
 			if c.err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", c.container, c.err))
 			}
 		}
+		vStats.mu.Unlock()
+		//fmt.Println("vstats unlocked")
 		if len(errs) > 0 {
 			return fmt.Errorf("%s", strings.Join(errs, ", "))
 		}
@@ -208,10 +214,9 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		
 		}
 		for range time.Tick(500 * time.Millisecond) {
-			if !<-doneChan{
-				time.Sleep(100*time.Millisecond)
-				continue
-			}
+			logrus.Debugf("Entering display infinite for loop")
+			vStats.mu.Lock()
+			//fmt.Println("for loop locked vStats")
 			printHeader()
 			toRemove := []string{}
 			for _, s := range vStats.vs {
@@ -226,8 +231,11 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			vStats.remove_v(name)
 		}
 		if len(vStats.vs) == 0{
+			vStats.mu.Unlock()
 			return nil
 		}
+		vStats.mu.Unlock()
+		//fmt.Println("for unlocked vStats")
 		if opts.noStream {
 			break
 		}

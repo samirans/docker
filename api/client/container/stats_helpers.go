@@ -138,6 +138,7 @@ func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient){
 }//CollectVol
 
 func (s *volumeStats) CollectVolStats(ctx context.Context,cli client.APIClient){
+	s.volumeStats = make([]map[string]interface{},len(s.volumes))
 	for i:=0;i<len(s.volumes);i++{
 		response, err := cli.VolumeInspect(ctx, s.volumes[i])
 		if (err!=nil){
@@ -146,7 +147,9 @@ func (s *volumeStats) CollectVolStats(ctx context.Context,cli client.APIClient){
 		}
 		ret,ok:=response.Status["iostats"].(map[string]interface{})
 		if ok{
-			s.volumeStats = append(s.volumeStats,ret)
+			//fmt.Println("get successful adding stats to structure")
+			//fmt.Println(ret)
+			s.volumeStats[i] = ret
 		}
 	}
 }
