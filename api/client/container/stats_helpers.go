@@ -147,8 +147,6 @@ func (s *volumeStats) CollectVolStats(ctx context.Context,cli client.APIClient){
 		}
 		ret,ok:=response.Status["iostats"].(map[string]interface{})
 		if ok{
-			//fmt.Println("get successful adding stats to structure")
-			//fmt.Println(ret)
 			s.volumeStats[i] = ret
 		}
 	}
