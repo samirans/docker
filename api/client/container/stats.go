@@ -163,34 +163,49 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			fmt.Println("Please provide container name(s)")
 			return nil
 		}
-
+				
 		for _,name:=range opts.containers{
 			s := &volumeStats{container: name}
 			if vStats.add_v(s){
-				waitFirst.Add(1)
-				s.CollectVol(ctx,dockerCli.Client(),!opts.noStream,waitFirst)
+				//collects list of volumes for each container
+				s.CollectVol(ctx,dockerCli.Client())
+			}	
+		}
+		go func(){
+		for{	
+			vStats.mu.Lock()
+			//fmt.Println("go func locked vStats")
+			for _,s:=range vStats.vs{
+				if s.err != nil{
+					fmt.Println(s.err)
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
+				//collects volume stats for each volume
+				s.CollectVolStats(ctx,dockerCli.Client())
 			}
-
-		}	
-
+			vStats.mu.Unlock()
+			//fmt.Println("go func unlocked vStats..sleeping")
+			time.Sleep(300*time.Millisecond)
+			if opts.noStream{
+				break
+			}
+		}
+		}()//go
 		close(closeChan)
-		time.Sleep(1500 * time.Millisecond)
 		var errs []string
 		vStats.mu.Lock()
+		//fmt.Println("vstats locked")
 		for _, c := range vStats.vs {
-			c.mu.Lock()
 			if c.err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", c.container, c.err))
 			}
-			c.mu.Unlock()
 		}
 		vStats.mu.Unlock()
+		//fmt.Println("vstats unlocked")
 		if len(errs) > 0 {
 			return fmt.Errorf("%s", strings.Join(errs, ", "))
 		}
-
-		waitFirst.Wait()
-
 		printHeader := func() {
 			if !opts.noStream{
 			  	fmt.Fprint(dockerCli.Out(), "\033[2J")
@@ -198,26 +213,29 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			}
 		
 		}
-
 		for range time.Tick(500 * time.Millisecond) {
+			logrus.Debugf("Entering display infinite for loop")
+			vStats.mu.Lock()
+			//fmt.Println("for loop locked vStats")
 			printHeader()
 			toRemove := []string{}
-			vStats.mu.Lock()
 			for _, s := range vStats.vs {
 				if err := s.DisplayVol(); err != nil && !opts.noStream{
 					logrus.Debugf("stats: got error for %s: %v", s.container, err)
 					if err == io.EOF {
 						toRemove = append(toRemove, s.container)
 					}
-				}	
+				}
 			}
-		vStats.mu.Unlock()
 		for _, name := range toRemove {
 			vStats.remove_v(name)
 		}
 		if len(vStats.vs) == 0{
+			vStats.mu.Unlock()
 			return nil
 		}
+		vStats.mu.Unlock()
+		//fmt.Println("for unlocked vStats")
 		if opts.noStream {
 			break
 		}
