@@ -1,14 +1,13 @@
 package container
 
 import (
-	"fmt"
 	"sync"
-	"sort"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/engine-api/client"
 	"golang.org/x/net/context"
 )
+
 //volStats is a struct for storing a standard set of stats (future use)
 //type volStats struct{}
 //	readLat		string
@@ -25,25 +24,31 @@ import (
 //	verr		error
 //}
 
-type volumeStats struct{
-	mu		sync.Mutex
-	container	string
-	driver		[]string//driver type for each volume
-	volumes		[]string//for more than one volume per container
-	volumeStats	[]map[string]interface{}//storing volume stats for all volumes as an arra of maps
+type volStats interface{
+	CollectVolStats()
+	DisplayVol()
+}
+
+type containerDetails struct{
+	container	string //container name
+	volDrivMap	map[string]string//map of volume and its driver for this container
 	err		error
+	
+	vs		[]*volumeStats//stats of all the volumes of this container(for vmdk defined in vmdk_stats.go)
+	//include structures for other volume types here
 }
 
 type vstats struct{
 	mu		sync.Mutex
-	vs		[]*volumeStats
+	//vs		[]*volumeStats
+	c		[]*containerDetails
 }
 
-func (s *vstats) add_v(vs *volumeStats) bool {
+func (s *vstats) add_v(con *containerDetails) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.isKnownContainer_v(vs.container); !exists {
-		s.vs = append(s.vs, vs)
+	if _, exists := s.isKnownContainer_v(con.container); !exists {
+		s.c = append(s.c, con)
 		return true
 	}
 	return false
@@ -52,81 +57,41 @@ func (s *vstats) add_v(vs *volumeStats) bool {
 func (s *vstats) remove_v(id string) {
 	s.mu.Lock()
 	if i, exists := s.isKnownContainer_v(id); exists {
-		s.vs = append(s.vs[:i], s.vs[i+1:]...)
+		s.c = append(s.c[:i], s.c[i+1:]...)
 	}
 	s.mu.Unlock()
 }
 
 func (s *vstats) isKnownContainer_v(cid string) (int, bool) {
-	for i, c := range s.vs {
+	for i, c := range s.c {
 		if c.container == cid {
 			return i, true
 		}
 	}
 	return -1, false
 }
-func (s *volumeStats) CollectVol(ctx context.Context,cli client.APIClient){
-	logrus.Debugf("collecting volume names for container %s",s.container)
+
+//CollectVol collects volume name and the driver type per container
+func (c *containerDetails) CollectVol(ctx context.Context,cli client.APIClient){
+	logrus.Debugf("collecting volume names for container %s",c.container)
 	var getFirst bool
 	defer func() {
 		if !getFirst {
 			getFirst = true
 		}
 	}()
-	volList, err := cli.ContainerInspect(ctx, s.container)
+	volList, err := cli.ContainerInspect(ctx, c.container)
 	if err != nil{
-		s.err = err
+		c.err = err
 		return
 	}
+	c.volDrivMap = make(map[string]string)
 	for i:=0;i< len(volList.Mounts);i++{
-		s.volumes = append(s.volumes,volList.Mounts[i].Name)//add all the volume names to s.volumes
-		s.driver = append(s.driver,volList.Mounts[i].Driver)//add all the volume types
+		name := volList.Mounts[i].Name
+		driver := volList.Mounts[i].Driver
+		c.volDrivMap[name]=driver
+		x := &volumeStats{driver:driver}
+		c.vs = append(c.vs,x)
 	}
 }//CollectVol
 
-func (s *volumeStats) CollectVolStats(ctx context.Context,cli client.APIClient){
-	s.volumeStats = make([]map[string]interface{},len(s.volumes))
-	for i:=0;i<len(s.volumes);i++{
-		response, err := cli.VolumeInspect(ctx, s.volumes[i])
-		if (err!=nil){
-			s.err = err
-			return
-		}
-		ret,ok:=response.Status["iostats"].(map[string]interface{})
-		if ok{
-			s.volumeStats[i] = ret
-		}
-	}
-}
-
-func (s *volumeStats) DisplayVol() error{
-	for i,_:=range s.volumes{
-		name:=" "
-		if(len(s.volumes[i])>=12){
-			name = s.volumes[i][:12]
-		}else{
-			name = s.volumes[i]
-		}	
-		if (s.err!=nil) {
-			err:=s.err
-			return err
-		}
-		var keys []string		
-		fmt.Println("Container:"+s.container)
-		fmt.Println("Volume:"+name)
-		fmt.Println("Driver:"+s.driver[i])
-		for j,_ := range s.volumeStats[i]{
-			keys = append(keys,j)
-		}
-		sort.Strings(keys)
-		for _,k := range keys{
-			fmt.Printf("%-14.13s",k)
-		}
-		fmt.Print("\n")
-		for _,val:=range keys{
-			fmt.Printf("%-14.13s",s.volumeStats[i][val].(string))
-		}
-		fmt.Print("\n")
-	}
- 	return nil
-}//DisplayVol

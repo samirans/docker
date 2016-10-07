@@ -9,14 +9,13 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/Sirupsen/logrus"
-	//cli "github.com/docker/engine-api/client"
 	"github.com/docker/docker/api/client"
 )
 
 func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []string, noStream bool, closeChan chan error) error{		
 	vStats := vstats{}
 	for _,name:=range containers{
-		s := &volumeStats{container: name}
+		s := &containerDetails{container: name}
 		if vStats.add_v(s){
 			//collects list of volumes for each container
 			s.CollectVol(ctx,dockerCli.Client())
@@ -25,14 +24,16 @@ func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []stri
 	go func(){
 	for{	
 		vStats.mu.Lock()
-		for _,s:=range vStats.vs{
+		for _,s:=range vStats.c{
 			if s.err != nil{
 				fmt.Println(s.err)
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			//collects volume stats for each volume
-			s.CollectVolStats(ctx,dockerCli.Client())
+			for _,u := range s.vs{
+				u.CollectVolStats(ctx,dockerCli.Client(),s)
+			}
 		}
 		vStats.mu.Unlock()
 		time.Sleep(300*time.Millisecond)
@@ -44,7 +45,7 @@ func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []stri
 	close(closeChan)
 	var errs []string
 	vStats.mu.Lock()
-	for _, c := range vStats.vs {
+	for _, c := range vStats.c {
 		if c.err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", c.container, c.err))
 		}
@@ -64,39 +65,41 @@ func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []stri
 		vStats.mu.Lock()
 		printHeader()
 		toRemove := []string{}
-		for _, s := range vStats.vs {
-			if err := s.DisplayVol(); err != nil && !noStream{
-				logrus.Debugf("stats: got error for %s: %v", s.container, err)
-				if err == io.EOF {
-					toRemove = append(toRemove, s.container)
+		for _, s := range vStats.c {
+			for _,u := range s.vs{
+				if err := u.DisplayVol(s); err != nil && !noStream{
+					logrus.Debugf("stats: got error for %s: %v", s.container, err)
+					if err == io.EOF {
+						toRemove = append(toRemove, s.container)
+					}
 				}
 			}
 		}
-	for _, name := range toRemove {
-		vStats.remove_v(name)
-	}
-	if len(vStats.vs) == 0{
+		for _, name := range toRemove {
+			vStats.remove_v(name)
+		}
+		if len(vStats.c) == 0{
+			vStats.mu.Unlock()
+			return nil
+		}
 		vStats.mu.Unlock()
-		return nil
-	}
-	vStats.mu.Unlock()
-	if noStream {
-		break
-	}
-	select {
-		case err, ok := <-closeChan:
-			if ok {
-				if err != nil {
-					// this is suppressing "unexpected EOF" in the cli when the
-					// daemon restarts so it shutdowns cleanly
-					if err == io.ErrUnexpectedEOF {
-						return nil
+		if noStream {
+			break
+		}
+		select {
+			case err, ok := <-closeChan:
+				if ok {
+					if err != nil {
+						// this is suppressing "unexpected EOF" in the cli when the
+						// daemon restarts so it shutdowns cleanly
+						if err == io.ErrUnexpectedEOF {
+							return nil
+						}
+						return err
 					}
-					return err
 				}
-			}
-		default:
-		// just skip
+			default:
+			// just skip
 		}
 	}
 	return nil
