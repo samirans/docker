@@ -13,10 +13,10 @@ import (
 )
 
 func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []string, noStream bool, closeChan chan error) error{		
-	vStats := vstats{}
+	vStats := stats{}
 	for _,name:=range containers{
-		s := &containerDetails{container: name}
-		if vStats.add_v(s){
+		s := &containerStats{Name: name}
+		if vStats.add(s){
 			//collects list of volumes for each container
 			s.CollectVol(ctx,dockerCli.Client())
 		}	
@@ -24,19 +24,17 @@ func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []stri
 	go func(){
 	for{	
 		vStats.mu.Lock()
-		for _,s:=range vStats.c{
+		for _,s:=range vStats.cs{
 			if s.err != nil{
 				fmt.Println(s.err)
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
-			//collects volume stats for each volume
-			for _,u := range s.vs{
-				u.CollectVolStats(ctx,dockerCli.Client(),s)
-			}
+			//collects volume stats for each container
+			s.RetrieveVolStats(ctx,dockerCli.Client())
 		}
 		vStats.mu.Unlock()
-		time.Sleep(300*time.Millisecond)
+		time.Sleep(5000*time.Millisecond)
 		if noStream{
 			break
 		}
@@ -45,9 +43,9 @@ func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []stri
 	close(closeChan)
 	var errs []string
 	vStats.mu.Lock()
-	for _, c := range vStats.c {
+	for _, c := range vStats.cs {
 		if c.err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", c.container, c.err))
+			errs = append(errs, fmt.Sprintf("%s: %v", c.Name, c.err))
 		}
 	}
 	vStats.mu.Unlock()
@@ -61,24 +59,22 @@ func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []stri
 		}
 	
 	}
-	for range time.Tick(500 * time.Millisecond) {
+	for range time.Tick(5000 * time.Millisecond) {
 		vStats.mu.Lock()
 		printHeader()
 		toRemove := []string{}
-		for _, s := range vStats.c {
-			for _,u := range s.vs{
-				if err := u.DisplayVol(s); err != nil && !noStream{
-					logrus.Debugf("stats: got error for %s: %v", s.container, err)
-					if err == io.EOF {
-						toRemove = append(toRemove, s.container)
-					}
+		for _, s := range vStats.cs {
+			if err := s.DisplayVolStats(); err != nil && !noStream{
+				logrus.Debugf("stats: got error for %s: %v", s.Name, err)
+				if err == io.EOF {
+					toRemove = append(toRemove, s.Name)
 				}
 			}
 		}
 		for _, name := range toRemove {
-			vStats.remove_v(name)
+			vStats.remove(name)
 		}
-		if len(vStats.c) == 0{
+		if len(vStats.cs) == 0{
 			vStats.mu.Unlock()
 			return nil
 		}

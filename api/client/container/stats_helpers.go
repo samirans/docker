@@ -29,6 +29,9 @@ type containerStats struct {
 	PidsCurrent      uint64
 	mu               sync.Mutex
 	err              error
+
+	DrivVolMap	 map[string][]string
+	vStats		 map[string][]volStats
 }
 
 type stats struct {
@@ -62,6 +65,91 @@ func (s *stats) isKnownContainer(cid string) (int, bool) {
 	}
 	return -1, false
 }
+
+//volStats is a struct for storing a standard set of stats (future use)
+//type volStats struct{}
+//      readLat         string
+//      writeLat        string
+//      avgReadLat      string
+//      avgWriteLat     string
+//      avgRds/s        string
+//      avgWrs/s        string
+//      RdOuts          string
+//      WrOuts          string
+//      RdBlkSize       string
+//      WrBlkSize       string
+//      vmu             sync.Mutex
+//      verr            error
+//}
+
+type volStats interface{
+        CollectStats(context.Context,client.APIClient,*containerStats,string)
+	Flush(*containerStats,string,string) error
+}
+
+
+//CollectVol collects volume name and the driver type per container
+func (c *containerStats) CollectVol(ctx context.Context,cli client.APIClient){
+        logrus.Debugf("collecting volume names for container %s",c.Name)
+        var getFirst bool
+        defer func() {
+                if !getFirst {
+                        getFirst = true
+                }
+        }()
+        volList, err := cli.ContainerInspect(ctx, c.Name)
+        if err != nil{
+                c.err = err
+                return
+        }
+	for i:=0;i< len(volList.Mounts);i++{
+                volName := volList.Mounts[i].Name
+                driver := volList.Mounts[i].Driver
+		if c.DrivVolMap == nil{
+			c.DrivVolMap = make(map[string][]string)
+		}
+		_,ok := c.DrivVolMap[driver]
+		if !ok{
+			x:=[]string{volName}
+			c.DrivVolMap[driver] = x
+			continue
+		}
+		c.DrivVolMap[driver]=append(c.DrivVolMap[driver],volName)
+	}
+}//CollectVol
+
+func (s *containerStats)RetrieveVolStats(ctx context.Context,cli client.APIClient){
+	for k,_ := range s.DrivVolMap{
+		_,ok := s.vStats[k]
+		if !ok{
+			if(k=="vmdk"){
+				for i:=0;i<len(s.DrivVolMap[k]);i++{
+					vs := NewVmdkStats()
+					s.vStats=make(map[string][]volStats)
+					s.vStats[k]=append(s.vStats[k],vs)
+					s.vStats[k][i].CollectStats(ctx,cli,s,s.DrivVolMap[k][i])
+				}
+			continue
+			}
+		}
+		for i:=0;i<len(s.DrivVolMap[k]);i++{
+			s.vStats[k][i].CollectStats(ctx,cli,s,s.DrivVolMap[k][i])
+		}
+	}
+}
+
+
+func (s *containerStats)DisplayVolStats() error{
+	for k,_ := range s.DrivVolMap{
+		for i:=0;i<len(s.DrivVolMap[k]);i++{
+			err := s.vStats[k][i].Flush(s,k,s.DrivVolMap[k][i])
+			if err != nil{
+				return err 
+			}
+		}
+	}
+	return nil
+}	
 
 func (s *containerStats) Collect(ctx context.Context, cli client.APIClient, streamStats bool, waitFirst *sync.WaitGroup) {
 	logrus.Debugf("collecting stats for %s", s.Name)
