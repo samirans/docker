@@ -174,7 +174,7 @@ func (s *containerStats) Collect(ctx context.Context, cli client.APIClient, stre
 				u <- err
 				if err == io.EOF {
 					break
-					}
+				}
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}

@@ -108,8 +108,6 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		}
 	}
 
-
-
 	if showAll {
 		// If no names were specified, start a long running goroutine which
 		// monitors container events. We make sure we're subscribed before
@@ -151,7 +149,6 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		// containers.
 		getContainerList()
 	} 
-
 
 	if opts.v{
 		if(len(opts.containers)) == 0{

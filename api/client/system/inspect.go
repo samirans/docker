@@ -3,11 +3,8 @@ package system
 import (
 	"fmt"
 	"strings"
-//	"sync"
 
 	"golang.org/x/net/context"
-	
-//	"github.com/docker/engine-api/types"
 	"github.com/docker/docker/api/client"
 	"github.com/docker/docker/api/client/inspect"
 	"github.com/docker/docker/cli"
