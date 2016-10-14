@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
-
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/client"
 )
+
+var VstatsMap = make (map[string]volStats)
 
 func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []string, noStream bool, closeChan chan error) error{		
 	vStats := stats{}

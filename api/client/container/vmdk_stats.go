@@ -10,7 +10,7 @@ import (
 
 type vmdkStats struct{
         err             error
-	volumeStats	map[string]interface{}
+	volumeStats	map[string]map[string]interface{}
 }
 
 func NewVmdkStats() *vmdkStats{
@@ -18,7 +18,7 @@ func NewVmdkStats() *vmdkStats{
 	return a
 }
 
-func (s *vmdkStats) CollectStats(ctx context.Context,cli client.APIClient,cont *containerStats,v string){
+func (s *vmdkStats) CollectStats(ctx context.Context,cli client.APIClient,v string){
 	response, err := cli.VolumeInspect(ctx,v)
 	if (err!=nil){
 		s.err = err
@@ -26,12 +26,15 @@ func (s *vmdkStats) CollectStats(ctx context.Context,cli client.APIClient,cont *
 	}
 	ret,ok:=response.Status["iostats"].(map[string]interface{})
 	if ok{
-		s.volumeStats = ret
+		if s.volumeStats == nil {
+			s.volumeStats = make(map[string]map[string]interface{})
+		}
+		s.volumeStats[v] = ret
 	}
 }
 
-func (s *vmdkStats) Flush(cont *containerStats,driver string,volume string) error{
-        fmt.Println("Container:"+cont.Name)
+func (s *vmdkStats) Flush(contName string,driver string,volume string) error{
+        fmt.Println("Container:"+contName)
 	fmt.Println("Driver:"+driver)
         vname:=" "
         if(len(volume)>=12){
@@ -45,7 +48,7 @@ func (s *vmdkStats) Flush(cont *containerStats,driver string,volume string) erro
 	}
 	var keys []string
 	fmt.Println("Volume:"+vname)
-	for j,_ := range s.volumeStats{
+	for j,_ := range s.volumeStats[volume]{
 		keys = append(keys,j)
 	}
 	sort.Strings(keys)
@@ -54,10 +57,8 @@ func (s *vmdkStats) Flush(cont *containerStats,driver string,volume string) erro
 	}
 	fmt.Print("\n")
 	for _,val:=range keys{
-		fmt.Printf("%-14.13s",s.volumeStats[val].(string))
+		fmt.Printf("%-14.13s",s.volumeStats[volume][val].(string))
 	}
 	fmt.Print("\n")
 	return nil
 }//DisplayVol
-
-

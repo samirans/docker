@@ -31,7 +31,6 @@ type containerStats struct {
 	err              error
 
 	DrivVolMap	 map[string][]string
-	vStats		 map[string][]volStats
 }
 
 type stats struct {
@@ -82,12 +81,6 @@ func (s *stats) isKnownContainer(cid string) (int, bool) {
 //      verr            error
 //}
 
-type volStats interface{
-        CollectStats(context.Context,client.APIClient,*containerStats,string)
-	Flush(*containerStats,string,string) error
-}
-
-
 //CollectVol collects volume name and the driver type per container
 func (c *containerStats) CollectVol(ctx context.Context,cli client.APIClient){
         logrus.Debugf("collecting volume names for container %s",c.Name)
@@ -120,29 +113,23 @@ func (c *containerStats) CollectVol(ctx context.Context,cli client.APIClient){
 
 func (s *containerStats)RetrieveVolStats(ctx context.Context,cli client.APIClient){
 	for k,_ := range s.DrivVolMap{
-		_,ok := s.vStats[k]
-		if !ok{
-			if(k=="vmdk"){
-				for i:=0;i<len(s.DrivVolMap[k]);i++{
-					vs := NewVmdkStats()
-					s.vStats=make(map[string][]volStats)
-					s.vStats[k]=append(s.vStats[k],vs)
-					s.vStats[k][i].CollectStats(ctx,cli,s,s.DrivVolMap[k][i])
-				}
-			continue
-			}
-		}
 		for i:=0;i<len(s.DrivVolMap[k]);i++{
-			s.vStats[k][i].CollectStats(ctx,cli,s,s.DrivVolMap[k][i])
+			if(k=="vmdk"){
+				_,ok := VstatsMap[k]
+				if !ok{
+					vs := NewVmdkStats()
+					VstatsMap[k]=vs
+				}
+				VstatsMap[k].CollectStats(ctx,cli,s.DrivVolMap[k][i])
+			}
 		}
 	}
 }
 
-
 func (s *containerStats)DisplayVolStats() error{
 	for k,_ := range s.DrivVolMap{
 		for i:=0;i<len(s.DrivVolMap[k]);i++{
-			err := s.vStats[k][i].Flush(s,k,s.DrivVolMap[k][i])
+			err := VstatsMap[k].Flush(s.Name,k,s.DrivVolMap[k][i])
 			if err != nil{
 				return err 
 			}
