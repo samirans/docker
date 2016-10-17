@@ -199,7 +199,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			fmt.Fprint(dockerCli.Out(), "\033[2J")
 			fmt.Fprint(dockerCli.Out(), "\033[H")
 		}
-		io.WriteString(w, "\nCONTAINER\tCPU %\tMEM USAGE / LIMIT\tMEM %\tNET I/O\tBLOCK I/O\tPIDS\n")
+		io.WriteString(w, "CONTAINER\tCPU %\tMEM USAGE / LIMIT\tMEM %\tNET I/O\tBLOCK I/O\tPIDS\n")
 	}
 
 	for range time.Tick(500 * time.Millisecond) {

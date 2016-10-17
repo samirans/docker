@@ -17,19 +17,19 @@ type containerVolumes struct {
 }
 
 type volumeStats struct{
-        VolName         string
-        AvgRdsPerSec    string
-        AvgWrsPerSec    string
-        AvgInProgRds    string
+	VolName         string
+	AvgRdsPerSec    string
+	AvgWrsPerSec    string
+	AvgInProgRds    string
 	AvgInProgWrs	string
-        AvgRdLat        string
-        AvgWrLat        string
-        AvgRdReqSz      string
-        AvgWrReqSz      string
-        RdLatency       string
-        WrLatency       string
-        RdRate          string
-        WrRate          string
+	AvgRdLat        string
+	AvgWrLat        string
+	AvgRdReqSz      string
+	AvgWrReqSz      string
+	RdLatency       string
+	WrLatency       string
+	RdRate          string
+	WrRate          string
 }
 
 type vstats struct {

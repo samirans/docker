@@ -411,8 +411,8 @@ type DefaultNetworkSettings struct {
 // MountPoint represents a mount point configuration inside the container.
 type MountPoint struct {
 	Name        string `json:",omitempty"`
-	Source      string 
-	Destination string 
+	Source      string
+	Destination string
 	Driver      string `json:",omitempty"`
 	Mode        string
 	RW          bool
