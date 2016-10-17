@@ -14,12 +14,12 @@ import (
 var VstatsMap = make (map[string]volStats)
 
 func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []string, noStream bool, closeChan chan error) error{		
-	vStats := stats{}
+	vStats := vstats{}
 	for _,name:=range containers{
-		s := &containerStats{Name: name}
+		s := &containerVolumes{Name: name}
 		if vStats.add(s){
 			//collects list of volumes for each container
-			s.CollectVol(ctx,dockerCli.Client())
+			s.InitVol(ctx,dockerCli.Client())
 		}	
 	}	
 	go func(){
@@ -32,7 +32,7 @@ func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []stri
 				continue
 			}
 			//collects volume stats for each container
-			s.RetrieveVolStats(ctx,dockerCli.Client())
+			s.CollectVolStats(ctx,dockerCli.Client())
 		}
 		vStats.mu.Unlock()
 		time.Sleep(5000*time.Millisecond)

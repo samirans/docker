@@ -6,8 +6,7 @@ import(
 )
 
 type volStats interface{
-        CollectStats(context.Context,client.APIClient,string)
-        Flush(string,string,string) error
+        CollectStats(context.Context,client.APIClient,*volumeStats)
 }
 
 
