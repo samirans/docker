@@ -105,9 +105,33 @@ func (s *containerVolumes)CollectVolStats(ctx context.Context,cli client.APIClie
 }
 
 func (s *containerVolumes)DisplayVolStats() error{
+	header := []string{"AvgRdsPerSec","AvgWrsPerSec","AvgInProgRds","AvgInProgWrs","AvgRdLat(ms)","AvgWrLat(ms)","AvgRdReqSz(B)","AvgWrReqSz(B)","RdLatency(µs)","WrLatency(µs)","RdRate","WrRate"}
+	fmt.Println("Container:"+s.Name)
 	for k,_ := range s.DriverVolStats{
+		fmt.Println("Driver:"+k)
 		for i:=0;i<len(s.DriverVolStats[k]);i++{
-			fmt.Println(s.DriverVolStats[k][i])	
+			volName := s.DriverVolStats[k][i].VolName
+			if(len(volName)>=12){
+				volName = volName[:12]
+			}
+			fmt.Println("Volume:"+volName)
+			for _,k := range header{
+				fmt.Printf("%-14.13s",k)
+			}
+			fmt.Print("\n")
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].AvgRdsPerSec)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].AvgWrsPerSec)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].AvgInProgRds)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].AvgInProgWrs)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].AvgRdLat)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].AvgWrLat)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].AvgRdReqSz)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].AvgWrReqSz)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].RdLatency)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].WrLatency)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].RdRate)
+			fmt.Printf("%-14.13s",s.DriverVolStats[k][i].WrRate)
+			fmt.Print("\n")
 		}
 	}
 	return nil
