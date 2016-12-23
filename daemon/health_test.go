@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types"
+	containertypes "github.com/docker/docker/api/types/container"
+	eventtypes "github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/daemon/events"
-	"github.com/docker/engine-api/types"
-	containertypes "github.com/docker/engine-api/types/container"
-	eventtypes "github.com/docker/engine-api/types/events"
 )
 
 func reset(c *container.Container) {
@@ -35,7 +35,7 @@ func TestNoneHealthcheck(t *testing.T) {
 
 	daemon.initHealthMonitor(c)
 	if c.State.Health != nil {
-		t.Errorf("Expecting Health to be nil, but was not")
+		t.Error("Expecting Health to be nil, but was not")
 	}
 }
 
@@ -80,7 +80,7 @@ func TestHealthStates(t *testing.T) {
 			Start:    startTime,
 			End:      startTime,
 			ExitCode: exitCode,
-		})
+		}, nil)
 	}
 
 	// starting -> failed -> success -> failed

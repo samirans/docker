@@ -43,7 +43,7 @@ func setDefaultUmask() error {
 	return nil
 }
 
-func getDaemonConfDir() string {
+func getDaemonConfDir(_ string) string {
 	return "/etc/docker"
 }
 
@@ -83,6 +83,12 @@ func (cli *DaemonCli) getPlatformRemoteOptions() []libcontainerd.RemoteOption {
 // store their state.
 func (cli *DaemonCli) getLibcontainerdRoot() string {
 	return filepath.Join(cli.Config.ExecRoot, "libcontainerd")
+}
+
+// getSwarmRunRoot gets the root directory for swarm to store runtime state
+// For example, the control socket
+func (cli *DaemonCli) getSwarmRunRoot() string {
+	return filepath.Join(cli.Config.ExecRoot, "swarm")
 }
 
 // allocateDaemonPort ensures that there are no containers

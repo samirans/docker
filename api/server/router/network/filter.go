@@ -3,14 +3,14 @@ package network
 import (
 	"fmt"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/runconfig"
-	"github.com/docker/engine-api/types"
-	"github.com/docker/engine-api/types/filters"
 )
 
 var (
-	// AcceptedFilters is an acceptable filters for validation
-	AcceptedFilters = map[string]bool{
+	// acceptedNetworkFilters is a list of acceptable filters
+	acceptedNetworkFilters = map[string]bool{
 		"driver": true,
 		"type":   true,
 		"name":   true,
@@ -47,7 +47,7 @@ func filterNetworks(nws []types.NetworkResource, filter filters.Args) ([]types.N
 		return nws, nil
 	}
 
-	if err := filter.Validate(AcceptedFilters); err != nil {
+	if err := filter.Validate(acceptedNetworkFilters); err != nil {
 		return nil, err
 	}
 

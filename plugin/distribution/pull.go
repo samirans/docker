@@ -1,5 +1,3 @@
-// +build experimental
-
 package distribution
 
 import (
@@ -14,15 +12,15 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/manifest/schema2"
+	"github.com/docker/docker/api/types"
 	dockerdist "github.com/docker/docker/distribution"
 	archive "github.com/docker/docker/pkg/chrootarchive"
 	"github.com/docker/docker/reference"
 	"github.com/docker/docker/registry"
-	"github.com/docker/engine-api/types"
 	"golang.org/x/net/context"
 )
 
-// PullData is the plugin manifest and the rootfs
+// PullData is the plugin config and the rootfs
 type PullData interface {
 	Config() ([]byte, error)
 	Layer() (io.ReadCloser, error)
@@ -62,19 +60,32 @@ func (pd *pullData) Layer() (io.ReadCloser, error) {
 	return rsc, nil
 }
 
-// Pull downloads the plugin from Store
-func Pull(name string, rs registry.Service, metaheader http.Header, authConfig *types.AuthConfig) (PullData, error) {
+// GetRef returns the distribution reference for a given name.
+func GetRef(name string) (reference.Named, error) {
 	ref, err := reference.ParseNamed(name)
 	if err != nil {
-		logrus.Debugf("pull.go: error in ParseNamed: %v", err)
 		return nil, err
 	}
+	return ref, nil
+}
 
+// GetTag returns the tag associated with the given reference name.
+func GetTag(ref reference.Named) string {
+	tag := DefaultTag
+	if ref, ok := ref.(reference.NamedTagged); ok {
+		tag = ref.Tag()
+	}
+	return tag
+}
+
+// Pull downloads the plugin from Store
+func Pull(ref reference.Named, rs registry.Service, metaheader http.Header, authConfig *types.AuthConfig) (PullData, error) {
 	repoInfo, err := rs.ResolveRepository(ref)
 	if err != nil {
 		logrus.Debugf("pull.go: error in ResolveRepository: %v", err)
 		return nil, err
 	}
+	repoInfo.Class = "plugin"
 
 	if err := dockerdist.ValidateRepoName(repoInfo.Name()); err != nil {
 		logrus.Debugf("pull.go: error in ValidateRepoName: %v", err)
@@ -103,7 +114,7 @@ func Pull(name string, rs registry.Service, metaheader http.Header, authConfig *
 			return nil, err
 		}
 		if !confirmedV2 {
-			logrus.Debugf("pull.go: !confirmedV2")
+			logrus.Debug("pull.go: !confirmedV2")
 			return nil, ErrUnsupportedRegistry
 		}
 		logrus.Debugf("Trying to pull %s from %s %s", repoInfo.Name(), endpoint.URL, endpoint.Version)
@@ -128,9 +139,8 @@ func Pull(name string, rs registry.Service, metaheader http.Header, authConfig *
 	}
 	manifest, err := msv.Get(context.Background(), "", distribution.WithTag(tag))
 	if err != nil {
-		// TODO: change 401 to 404
 		logrus.Debugf("pull.go: error in msv.Get(): %v", err)
-		return nil, err
+		return nil, dockerdist.TranslatePullError(err, repoInfo)
 	}
 
 	_, pl, err := manifest.Payload()
@@ -143,7 +153,7 @@ func Pull(name string, rs registry.Service, metaheader http.Header, authConfig *
 		logrus.Debugf("pull.go: error in json.Unmarshal(): %v", err)
 		return nil, err
 	}
-	if m.Config.MediaType != MediaTypeConfig {
+	if m.Config.MediaType != schema2.MediaTypePluginConfig {
 		return nil, ErrUnsupportedMediaType
 	}
 
@@ -166,14 +176,14 @@ func WritePullData(pd PullData, dest string, extract bool) error {
 	if err := json.Unmarshal(config, &p); err != nil {
 		return err
 	}
-	logrus.Debugf("%#v", p)
+	logrus.Debugf("plugin: %#v", p)
 
 	if err := os.MkdirAll(dest, 0700); err != nil {
 		return err
 	}
 
 	if extract {
-		if err := ioutil.WriteFile(filepath.Join(dest, "manifest.json"), config, 0600); err != nil {
+		if err := ioutil.WriteFile(filepath.Join(dest, "config.json"), config, 0600); err != nil {
 			return err
 		}
 

@@ -1,12 +1,12 @@
-// +build experimental
-
 package graphdriver
 
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 
-	"github.com/docker/docker/pkg/plugins"
+	"github.com/docker/docker/pkg/plugingetter"
+	"github.com/docker/docker/plugin/v2"
 )
 
 type pluginClient interface {
@@ -18,15 +18,22 @@ type pluginClient interface {
 	SendFile(string, io.Reader, interface{}) error
 }
 
-func lookupPlugin(name, home string, opts []string) (Driver, error) {
-	pl, err := plugins.Get(name, "GraphDriver")
+func lookupPlugin(name, home string, opts []string, pg plugingetter.PluginGetter) (Driver, error) {
+	pl, err := pg.Get(name, "GraphDriver", plugingetter.LOOKUP)
 	if err != nil {
 		return nil, fmt.Errorf("Error looking up graphdriver plugin %s: %v", name, err)
 	}
-	return newPluginDriver(name, home, opts, pl.Client())
+	return newPluginDriver(name, home, opts, pl)
 }
 
-func newPluginDriver(name, home string, opts []string, c pluginClient) (Driver, error) {
-	proxy := &graphDriverProxy{name, c}
-	return proxy, proxy.Init(home, opts)
+func newPluginDriver(name, home string, opts []string, pl plugingetter.CompatPlugin) (Driver, error) {
+	if !pl.IsV1() {
+		if p, ok := pl.(*v2.Plugin); ok {
+			if p.PropagatedMount != "" {
+				home = p.PluginObj.Config.PropagatedMount
+			}
+		}
+	}
+	proxy := &graphDriverProxy{name, pl}
+	return proxy, proxy.Init(filepath.Join(home, name), opts)
 }

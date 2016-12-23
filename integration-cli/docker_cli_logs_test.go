@@ -117,22 +117,28 @@ func (s *DockerSuite) TestLogsTail(c *check.C) {
 	id := strings.TrimSpace(out)
 	dockerCmd(c, "wait", id)
 
-	out, _ = dockerCmd(c, "logs", "--tail", "5", id)
-
+	out, _ = dockerCmd(c, "logs", "--tail", "0", id)
 	lines := strings.Split(out, "\n")
+	c.Assert(lines, checker.HasLen, 1)
 
+	out, _ = dockerCmd(c, "logs", "--tail", "5", id)
+	lines = strings.Split(out, "\n")
 	c.Assert(lines, checker.HasLen, 6)
 
-	out, _ = dockerCmd(c, "logs", "--tail", "all", id)
-
+	out, _ = dockerCmd(c, "logs", "--tail", "99", id)
 	lines = strings.Split(out, "\n")
+	c.Assert(lines, checker.HasLen, 100)
 
+	out, _ = dockerCmd(c, "logs", "--tail", "all", id)
+	lines = strings.Split(out, "\n")
+	c.Assert(lines, checker.HasLen, testLen+1)
+
+	out, _ = dockerCmd(c, "logs", "--tail", "-1", id)
+	lines = strings.Split(out, "\n")
 	c.Assert(lines, checker.HasLen, testLen+1)
 
 	out, _, _ = dockerCmdWithStdoutStderr(c, "logs", "--tail", "random", id)
-
 	lines = strings.Split(out, "\n")
-
 	c.Assert(lines, checker.HasLen, testLen+1)
 }
 
@@ -304,8 +310,8 @@ func (s *DockerSuite) TestLogsFollowGoroutinesNoOutput(c *check.C) {
 func (s *DockerSuite) TestLogsCLIContainerNotFound(c *check.C) {
 	name := "testlogsnocontainer"
 	out, _, _ := dockerCmdWithError("logs", name)
-	message := fmt.Sprintf("Error: No such container: %s\n", name)
-	c.Assert(out, checker.Equals, message)
+	message := fmt.Sprintf("No such container: %s\n", name)
+	c.Assert(out, checker.Contains, message)
 }
 
 func (s *DockerSuite) TestLogsWithDetails(c *check.C) {

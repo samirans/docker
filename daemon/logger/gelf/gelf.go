@@ -5,7 +5,6 @@
 package gelf
 
 import (
-	"bytes"
 	"compress/flate"
 	"encoding/json"
 	"fmt"
@@ -54,9 +53,6 @@ func New(ctx logger.Context) (logger.Logger, error) {
 		return nil, fmt.Errorf("gelf: cannot access hostname to set source field")
 	}
 
-	// remove trailing slash from container name
-	containerName := bytes.TrimLeft([]byte(ctx.ContainerName), "/")
-
 	// parse log tag
 	tag, err := loggerutils.ParseLogTag(ctx, loggerutils.DefaultTemplate)
 	if err != nil {
@@ -65,7 +61,7 @@ func New(ctx logger.Context) (logger.Logger, error) {
 
 	extra := map[string]interface{}{
 		"_container_id":   ctx.ContainerID,
-		"_container_name": string(containerName),
+		"_container_name": ctx.Name(),
 		"_image_id":       ctx.ContainerImageID,
 		"_image_name":     ctx.ContainerImageName,
 		"_command":        ctx.Command(),
@@ -176,11 +172,8 @@ func ValidateLogOpt(cfg map[string]string) error {
 		}
 	}
 
-	if _, err := parseAddress(cfg["gelf-address"]); err != nil {
-		return err
-	}
-
-	return nil
+	_, err := parseAddress(cfg["gelf-address"])
+	return err
 }
 
 func parseAddress(address string) (string, error) {

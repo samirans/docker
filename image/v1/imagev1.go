@@ -9,9 +9,9 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/distribution/digest"
+	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/layer"
-	"github.com/docker/engine-api/types/versions"
 )
 
 var validHex = regexp.MustCompile(`^([a-f0-9]{64})$`)
@@ -109,7 +109,7 @@ func MakeConfigFromV1Config(imageJSON []byte, rootfs *image.RootFS, history []im
 	return json.Marshal(c)
 }
 
-// MakeV1ConfigFromConfig creates an legacy V1 image config from an Image struct
+// MakeV1ConfigFromConfig creates a legacy V1 image config from an Image struct
 func MakeV1ConfigFromConfig(img *image.Image, v1ID, parentV1ID string, throwaway bool) ([]byte, error) {
 	// Top-level v1compatibility string should be a modified version of the
 	// image config.
