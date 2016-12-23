@@ -5,7 +5,8 @@ import (
 	"sync"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/engine-api/client"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 	"golang.org/x/net/context"
 )
 
