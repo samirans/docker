@@ -8,13 +8,12 @@ import (
 
 	"golang.org/x/net/context"
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/cli/command"	
-		
+	"github.com/docker/docker/cli/command"
 )
 
 var VstatsMap = make (map[string]volStats)
 
-func RunvStats(ctx context.Context,dockerCli *client.DockerCli,containers []string, noStream bool, closeChan chan error) error{		
+func RunvStats(ctx context.Context,dockerCli *command.DockerCli,containers []string, noStream bool, closeChan chan error) error{		
 	vStats := vstats{}
 	for _,name:=range containers{
 		s := &containerVolumes{Name: name}
