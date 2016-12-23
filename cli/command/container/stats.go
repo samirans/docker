@@ -22,6 +22,7 @@ type statsOptions struct {
 	all        bool
 	noStream   bool
 	format     string
+	v	   bool
 	containers []string
 }
 
@@ -43,6 +44,7 @@ func NewStatsCommand(dockerCli *command.DockerCli) *cobra.Command {
 	flags.BoolVarP(&opts.all, "all", "a", false, "Show all containers (default shows just running)")
 	flags.BoolVar(&opts.noStream, "no-stream", false, "Disable streaming stats and only pull the first result")
 	flags.StringVar(&opts.format, "format", "", "Pretty-print images using a Go template")
+	flags.BoolVarP(&opts.v, "volume", "v", false, "Get volume stats")
 	return cmd
 }
 
@@ -153,6 +155,14 @@ func runStats(dockerCli *command.DockerCli, opts *statsOptions) error {
 		// Start a short-lived goroutine to retrieve the initial list of
 		// containers.
 		getContainerList()
+	} 
+	if opts.v{
+		if(len(opts.containers)) == 0{
+			fmt.Println("Please provide container name(s)")
+			return nil
+		}
+		RunvStats(ctx,dockerCli,opts.containers,opts.noStream,closeChan)	
+		return nil
 	} else {
 		// Artificially send creation events for the containers we were asked to
 		// monitor (same code path than we use when monitoring all containers).
