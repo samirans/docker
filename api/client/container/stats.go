@@ -18,16 +18,12 @@ import (
 	"github.com/docker/engine-api/types/events"
 	"github.com/docker/engine-api/types/filters"
 	"github.com/spf13/cobra"
-
-
 )
 
 type statsOptions struct {
 	all      bool
 	noStream bool
 	v	 bool
-
-
 	containers []string
 }
 
@@ -93,7 +89,6 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 	waitFirst := &sync.WaitGroup{}
 
 	cStats := stats{}
-	vStats := vstats{}
 	// getContainerList simulates creation event for all previously existing
 	// containers (only used when calling `docker stats` without arguments).
 	getContainerList := func() {
@@ -112,8 +107,6 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			}
 		}
 	}
-
-
 
 	if showAll {
 		// If no names were specified, start a long running goroutine which
@@ -157,87 +150,13 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 		getContainerList()
 	} 
 
-
 	if opts.v{
 		if(len(opts.containers)) == 0{
 			fmt.Println("Please provide container name(s)")
 			return nil
 		}
-
-		for _,name:=range opts.containers{
-			s := &volumeStats{container: name}
-			if vStats.add_v(s){
-				waitFirst.Add(1)
-				s.CollectVol(ctx,dockerCli.Client(),!opts.noStream,waitFirst)
-			}
-
-		}	
-
-		close(closeChan)
-		time.Sleep(1500 * time.Millisecond)
-		var errs []string
-		vStats.mu.Lock()
-		for _, c := range vStats.vs {
-			c.mu.Lock()
-			if c.err != nil {
-				errs = append(errs, fmt.Sprintf("%s: %v", c.container, c.err))
-			}
-			c.mu.Unlock()
-		}
-		vStats.mu.Unlock()
-		if len(errs) > 0 {
-			return fmt.Errorf("%s", strings.Join(errs, ", "))
-		}
-
-		waitFirst.Wait()
-
-		printHeader := func() {
-			if !opts.noStream{
-			  	fmt.Fprint(dockerCli.Out(), "\033[2J")
-				fmt.Fprint(dockerCli.Out(), "\033[H")
-			}
-		
-		}
-
-		for range time.Tick(500 * time.Millisecond) {
-			printHeader()
-			toRemove := []string{}
-			vStats.mu.Lock()
-			for _, s := range vStats.vs {
-				if err := s.DisplayVol(); err != nil && !opts.noStream{
-					logrus.Debugf("stats: got error for %s: %v", s.container, err)
-					if err == io.EOF {
-						toRemove = append(toRemove, s.container)
-					}
-				}	
-			}
-		vStats.mu.Unlock()
-		for _, name := range toRemove {
-			vStats.remove_v(name)
-		}
-		if len(vStats.vs) == 0{
-			return nil
-		}
-		if opts.noStream {
-			break
-		}
-		select {
-		case err, ok := <-closeChan:
-			if ok {
-				if err != nil {
-					// this is suppressing "unexpected EOF" in the cli when the
-					// daemon restarts so it shutdowns cleanly
-					if err == io.ErrUnexpectedEOF {
-						return nil
-					}
-					return err
-				}
-			}
-		default:
-			// just skip
-		}
-	}
-	return nil
+		RunvStats(ctx,dockerCli,opts.containers,opts.noStream,closeChan)	
+		return nil
 
 	}else{
 		// Artificially send creation events for the containers we were asked to
@@ -280,7 +199,7 @@ func runStats(dockerCli *client.DockerCli, opts *statsOptions) error {
 			fmt.Fprint(dockerCli.Out(), "\033[2J")
 			fmt.Fprint(dockerCli.Out(), "\033[H")
 		}
-		io.WriteString(w, "\nCONTAINER\tCPU %\tMEM USAGE / LIMIT\tMEM %\tNET I/O\tBLOCK I/O\tPIDS\n")
+		io.WriteString(w, "CONTAINER\tCPU %\tMEM USAGE / LIMIT\tMEM %\tNET I/O\tBLOCK I/O\tPIDS\n")
 	}
 
 	for range time.Tick(500 * time.Millisecond) {

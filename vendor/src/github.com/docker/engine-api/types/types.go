@@ -363,7 +363,7 @@ type ContainerJSONBase struct {
 // ContainerJSON is newly used struct along with MountPoint
 type ContainerJSON struct {
 	*ContainerJSONBase
-	Mounts          []MountPoint  `json:"Mounts,omitempt"` //edit
+	Mounts          []MountPoint
 	Config          *container.Config
 	NetworkSettings *NetworkSettings
 }
@@ -410,10 +410,10 @@ type DefaultNetworkSettings struct {
 
 // MountPoint represents a mount point configuration inside the container.
 type MountPoint struct {
-	Name        string `json:"Name,omitempty"`
-	Source      string `json:"Source,omitempty"`
-	Destination string `json:"Destination,omitempty"`
-	Driver      string `json:"Driver,omitempty"`
+	Name        string `json:",omitempty"`
+	Source      string
+	Destination string
+	Driver      string `json:",omitempty"`
 	Mode        string
 	RW          bool
 	Propagation string
@@ -424,13 +424,10 @@ type Volume struct {
 	Name       string                 // Name is the name of the volume
 	Driver     string                 // Driver is the Driver name used to create the volume
 	Mountpoint string                 // Mountpoint is the location on disk of the volume
-	Status     map[string]interface{} `json:"Status,omitempty"` // Status provides low-level status information about the volume
+	Status     map[string]interface{} `json:",omitempty"` // Status provides low-level status information about the volume
 	Labels     map[string]string      // Labels is metadata specific to the volume
 	Scope      string                 // Scope describes the level at which the volume exists (e.g. `global` for cluster-wide or `local` for machine level)
-
 }
-
-
 
 // VolumesListResponse contains the response for the remote API:
 // GET "/volumes"

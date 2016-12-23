@@ -3,11 +3,9 @@ package system
 import (
 	"fmt"
 	"strings"
-//	"sync"
 
 	"golang.org/x/net/context"
-	
-//	"github.com/docker/engine-api/types"
+
 	"github.com/docker/docker/api/client"
 	"github.com/docker/docker/api/client/inspect"
 	"github.com/docker/docker/cli"
@@ -43,7 +41,6 @@ func NewInspectCommand(dockerCli *client.DockerCli) *cobra.Command {
 
 	return cmd
 }
-
 
 func runInspect(dockerCli *client.DockerCli, opts inspectOptions) error {
 	ctx := context.Background()
