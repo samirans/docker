@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+	networktypes "github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/runconfig"
-	"github.com/docker/engine-api/types/container"
-	networktypes "github.com/docker/engine-api/types/network"
 	"github.com/docker/go-connections/nat"
 	"github.com/spf13/pflag"
 )
@@ -336,7 +336,7 @@ func compareRandomizedStrings(a, b, c, d string) error {
 // setupPlatformVolume takes two arrays of volume specs - a Unix style
 // spec and a Windows style spec. Depending on the platform being unit tested,
 // it returns one of them, along with a volume string that would be passed
-// on the docker CLI (eg -v /bar -v /foo).
+// on the docker CLI (e.g. -v /bar -v /foo).
 func setupPlatformVolume(u []string, w []string) ([]string, string) {
 	var a []string
 	if runtime.GOOS == "windows" {
@@ -556,11 +556,8 @@ func TestParseModes(t *testing.T) {
 
 func TestParseRestartPolicy(t *testing.T) {
 	invalids := map[string]string{
-		"something":          "invalid restart policy something",
-		"always:2":           "maximum restart count not valid with restart policy of \"always\"",
-		"always:2:3":         "maximum restart count not valid with restart policy of \"always\"",
-		"on-failure:invalid": `strconv.ParseInt: parsing "invalid": invalid syntax`,
-		"on-failure:2:5":     "restart count format is not valid, usage: 'on-failure:N' or 'on-failure'",
+		"always:2:3":         "invalid restart policy format",
+		"on-failure:invalid": "maximum retry count must be an integer",
 	}
 	valids := map[string]container.RestartPolicy{
 		"": {},
@@ -666,6 +663,33 @@ func TestParseEnvfileVariables(t *testing.T) {
 	}
 	if len(config.Env) != 2 || config.Env[0] != "ENV1=value1" || config.Env[1] != "ENV2=value2" {
 		t.Fatalf("Expected a config with [ENV1=value1 ENV2=value2], got %v", config.Env)
+	}
+}
+
+func TestParseEnvfileVariablesWithBOMUnicode(t *testing.T) {
+	// UTF8 with BOM
+	config, _, _, err := parseRun([]string{"--env-file=fixtures/utf8.env", "img", "cmd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"FOO=BAR", "HELLO=" + string([]byte{0xe6, 0x82, 0xa8, 0xe5, 0xa5, 0xbd}), "BAR=FOO"}
+	if len(config.Env) != len(env) {
+		t.Fatalf("Expected a config with %d env variables, got %v: %v", len(env), len(config.Env), config.Env)
+	}
+	for i, v := range env {
+		if config.Env[i] != v {
+			t.Fatalf("Expected a config with [%s], got %v", v, []byte(config.Env[i]))
+		}
+	}
+
+	// UTF16 with BOM
+	e := "contains invalid utf8 bytes at line"
+	if _, _, _, err := parseRun([]string{"--env-file=fixtures/utf16.env", "img", "cmd"}); err == nil || !strings.Contains(err.Error(), e) {
+		t.Fatalf("Expected an error with message '%s', got %v", e, err)
+	}
+	// UTF16BE with BOM
+	if _, _, _, err := parseRun([]string{"--env-file=fixtures/utf16be.env", "img", "cmd"}); err == nil || !strings.Contains(err.Error(), e) {
+		t.Fatalf("Expected an error with message '%s', got %v", e, err)
 	}
 }
 

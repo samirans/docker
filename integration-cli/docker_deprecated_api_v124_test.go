@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/docker/docker/pkg/integration"
 	"github.com/docker/docker/pkg/integration/checker"
 	"github.com/go-check/check"
 )
@@ -15,7 +16,7 @@ func formatV123StartAPIURL(url string) string {
 	return "/v1.23" + url
 }
 
-func (s *DockerSuite) TestDeprecatedContainerApiStartHostConfig(c *check.C) {
+func (s *DockerSuite) TestDeprecatedContainerAPIStartHostConfig(c *check.C) {
 	name := "test-deprecated-api-124"
 	dockerCmd(c, "create", "--name", name, "busybox")
 	config := map[string]interface{}{
@@ -27,7 +28,7 @@ func (s *DockerSuite) TestDeprecatedContainerApiStartHostConfig(c *check.C) {
 	c.Assert(string(body), checker.Contains, "was deprecated since v1.10")
 }
 
-func (s *DockerSuite) TestDeprecatedContainerApiStartVolumeBinds(c *check.C) {
+func (s *DockerSuite) TestDeprecatedContainerAPIStartVolumeBinds(c *check.C) {
 	// TODO Windows CI: Investigate further why this fails on Windows to Windows CI.
 	testRequires(c, DaemonIsLinux)
 	path := "/foo"
@@ -58,7 +59,7 @@ func (s *DockerSuite) TestDeprecatedContainerApiStartVolumeBinds(c *check.C) {
 }
 
 // Test for GH#10618
-func (s *DockerSuite) TestDeprecatedContainerApiStartDupVolumeBinds(c *check.C) {
+func (s *DockerSuite) TestDeprecatedContainerAPIStartDupVolumeBinds(c *check.C) {
 	// TODO Windows to Windows CI - Port this
 	testRequires(c, DaemonIsLinux)
 	name := "testdups"
@@ -83,7 +84,7 @@ func (s *DockerSuite) TestDeprecatedContainerApiStartDupVolumeBinds(c *check.C) 
 	c.Assert(string(body), checker.Contains, "Duplicate mount point", check.Commentf("Expected failure due to duplicate bind mounts to same path, instead got: %q with error: %v", string(body), err))
 }
 
-func (s *DockerSuite) TestDeprecatedContainerApiStartVolumesFrom(c *check.C) {
+func (s *DockerSuite) TestDeprecatedContainerAPIStartVolumesFrom(c *check.C) {
 	// TODO Windows to Windows CI - Port this
 	testRequires(c, DaemonIsLinux)
 	volName := "voltst"
@@ -91,7 +92,7 @@ func (s *DockerSuite) TestDeprecatedContainerApiStartVolumesFrom(c *check.C) {
 
 	dockerCmd(c, "run", "--name", volName, "-v", volPath, "busybox")
 
-	name := "TestContainerApiStartVolumesFrom"
+	name := "TestContainerAPIStartVolumesFrom"
 	config := map[string]interface{}{
 		"Image":   "busybox",
 		"Volumes": map[string]struct{}{volPath: {}},
@@ -150,7 +151,7 @@ func (s *DockerSuite) TestDeprecatedStartWithTooLowMemoryLimit(c *check.C) {
 
 	res, body, err := sockRequestRaw("POST", formatV123StartAPIURL("/containers/"+containerID+"/start"), strings.NewReader(config), "application/json")
 	c.Assert(err, checker.IsNil)
-	b, err2 := readBody(body)
+	b, err2 := integration.ReadBody(body)
 	c.Assert(err2, checker.IsNil)
 	c.Assert(res.StatusCode, checker.Equals, http.StatusInternalServerError)
 	c.Assert(string(b), checker.Contains, "Minimum memory limit allowed is 4MB")
@@ -162,7 +163,7 @@ func (s *DockerSuite) TestDeprecatedPostContainersStartWithoutLinksInHostConfig(
 	// An alternate test could be written to validate the negative testing aspect of this
 	testRequires(c, DaemonIsLinux)
 	name := "test-host-config-links"
-	dockerCmd(c, append([]string{"create", "--name", name, "busybox"}, defaultSleepCommand...)...)
+	dockerCmd(c, append([]string{"create", "--name", name, "busybox"}, sleepCommandForDaemonPlatform()...)...)
 
 	hc := inspectFieldJSON(c, name, "HostConfig")
 	config := `{"HostConfig":` + hc + `}`

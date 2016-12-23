@@ -34,6 +34,27 @@ pgp.mit.edu
 keyserver.ubuntu.com
 "
 
+mirror=''
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--mirror)
+			mirror="$2"
+			shift
+			;;
+		*)
+			echo "Illegal option $1"
+			;;
+	esac
+	shift $(( $# > 0 ? 1 : 0 ))
+done
+
+case "$mirror" in
+	AzureChinaCloud)
+		apt_url="https://mirror.azure.cn/docker-engine/apt"
+		yum_url="https://mirror.azure.cn/docker-engine/yum"
+		;;
+esac
+
 command_exists() {
 	command -v "$@" > /dev/null 2>&1
 }
@@ -126,22 +147,32 @@ semverParse() {
 }
 
 do_install() {
-	case "$(uname -m)" in
-		*64)
+	architecture=$(uname -m)
+	case $architecture in
+		# officially supported
+		amd64|x86_64)
 			;;
+		# unofficially supported with available repositories
 		armv6l|armv7l)
 			;;
+		# unofficially supported without available repositories
+		aarch64|arm64|ppc64le|s390x)
+			cat 1>&2 <<-EOF
+			Error: Docker doesn't officially support $architecture and no Docker $architecture repository exists.
+			EOF
+			exit 1
+			;;
+		# not supported
 		*)
-			cat >&2 <<-'EOF'
-			Error: you are not using a 64bit platform or a Raspberry Pi (armv6l/armv7l).
-			Docker currently only supports 64bit platforms or a Raspberry Pi (armv6l/armv7l).
+			cat >&2 <<-EOF
+			Error: $architecture is not a recognized platform.
 			EOF
 			exit 1
 			;;
 	esac
 
 	if command_exists docker; then
-		version="$(docker -v | awk -F '[ ,]+' '{ print $3 }')"
+		version="$(docker -v | cut -d ' ' -f3 | cut -d ',' -f1)"
 		MAJOR_W=1
 		MINOR_W=10
 
@@ -247,6 +278,9 @@ do_install() {
 	if [ -z "$lsb_dist" ] && [ -r /etc/redhat-release ]; then
 		lsb_dist='redhat'
 	fi
+	if [ -z "$lsb_dist" ] && [ -r /etc/photon-release ]; then
+		lsb_dist='photon'
+	fi
 	if [ -z "$lsb_dist" ] && [ -r /etc/os-release ]; then
 		lsb_dist="$(. /etc/os-release && echo "$ID")"
 	fi
@@ -292,6 +326,11 @@ do_install() {
 			dist_version="$(rpm -q --whatprovides ${lsb_dist}-release --queryformat "%{VERSION}\n" | sed 's/\/.*//' | sed 's/\..*//' | sed 's/Server*//' | sort | tail -1)"
 		;;
 
+		"vmware photon")
+			lsb_dist="photon"
+			dist_version="$(. /etc/os-release && echo "$VERSION_ID")"
+		;;
+
 		*)
 			if command_exists lsb_release; then
 				dist_version="$(lsb_release --codename | cut -f2)"
@@ -309,74 +348,6 @@ do_install() {
 
 	# Run setup for each distro accordingly
 	case "$lsb_dist" in
-		amzn)
-			(
-			set -x
-			$sh_c 'sleep 3; yum -y -q install docker'
-			)
-			echo_docker_as_nonroot
-			exit 0
-			;;
-
-		'opensuse project'|opensuse)
-			echo 'Going to perform the following operations:'
-			if [ "$repo" != 'main' ]; then
-				echo '  * add repository obs://Virtualization:containers'
-			fi
-			echo '  * install Docker'
-			$sh_c 'echo "Press CTRL-C to abort"; sleep 3'
-
-			if [ "$repo" != 'main' ]; then
-				# install experimental packages from OBS://Virtualization:containers
-				(
-					set -x
-					zypper -n ar -f obs://Virtualization:containers Virtualization:containers
-					rpm_import_repository_key 55A0B34D49501BB7CA474F5AA193FBB572174FC2
-				)
-			fi
-			(
-				set -x
-				zypper -n install docker
-			)
-			echo_docker_as_nonroot
-			exit 0
-			;;
-		'suse linux'|sle[sd])
-			echo 'Going to perform the following operations:'
-			if [ "$repo" != 'main' ]; then
-				echo '  * add repository obs://Virtualization:containers'
-				echo '  * install experimental Docker using packages NOT supported by SUSE'
-			else
-				echo '  * add the "Containers" module'
-				echo '  * install Docker using packages supported by SUSE'
-			fi
-			$sh_c 'echo "Press CTRL-C to abort"; sleep 3'
-
-			if [ "$repo" != 'main' ]; then
-				# install experimental packages from OBS://Virtualization:containers
-				echo >&2 'Warning: installing experimental packages from OBS, these packages are NOT supported by SUSE'
-				(
-					set -x
-					zypper -n ar -f obs://Virtualization:containers/SLE_12 Virtualization:containers
-					rpm_import_repository_key 55A0B34D49501BB7CA474F5AA193FBB572174FC2
-				)
-			else
-				# Add the containers module
-				# Note well-1: the SLE machine must already be registered against SUSE Customer Center
-				# Note well-2: the `-r ""` is required to workaround a known issue of SUSEConnect
-				(
-					set -x
-					SUSEConnect -p sle-module-containers/12/x86_64 -r ""
-				)
-			fi
-			(
-				set -x
-				zypper -n install docker
-			)
-			echo_docker_as_nonroot
-			exit 0
-			;;
-
 		ubuntu|debian|raspbian)
 			export DEBIAN_FRONTEND=noninteractive
 
@@ -388,12 +359,7 @@ do_install() {
 				fi
 			}
 
-			if [ "$lsb_dist" = "raspbian" ]; then
-				# Create Raspbian specific systemd unit file, use overlay by default
-				( set -x; $sh_c "mkdir -p /etc/systemd/system" )
-				( set -x; $sh_c "$curl https://raw.githubusercontent.com/docker/docker/master/contrib/init/systemd/docker.service > /etc/systemd/system/docker.service" )
-				( set -x; $sh_c "sed -i 's/dockerd/dockerd --storage-driver overlay/' /etc/systemd/system/docker.service" )
-			else
+			if [ "$lsb_dist" != "raspbian" ]; then
 				# aufs is preferred over devicemapper; try to ensure the driver is available.
 				if ! grep -q aufs /proc/filesystems && ! $sh_c 'modprobe aufs'; then
 					if uname -r | grep -q -- '-generic' && dpkg -l 'linux-image-*-generic' | grep -qE '^ii|^hi' 2>/dev/null; then
@@ -422,7 +388,7 @@ do_install() {
 				if command -v apparmor_parser >/dev/null 2>&1; then
 					echo 'apparmor is enabled in the kernel and apparmor utils were already installed'
 				else
-					echo 'apparmor is enabled in the kernel, but apparmor_parser missing'
+					echo 'apparmor is enabled in the kernel, but apparmor_parser is missing. Trying to install it..'
 					apt_get_update
 					( set -x; $sh_c 'sleep 3; apt-get install -y -q apparmor' )
 				fi
@@ -437,6 +403,11 @@ do_install() {
 				( set -x; $sh_c 'sleep 3; apt-get install -y -q curl ca-certificates' )
 				curl='curl -sSL'
 			fi
+			if [ ! -e /usr/bin/gpg ]; then
+				apt_get_update
+				( set -x; $sh_c 'sleep 3; apt-get install -y -q gnupg2 || apt-get install -y -q gnupg' )
+			fi
+
 			(
 			set -x
 			for key_server in $key_servers ; do
@@ -451,7 +422,7 @@ do_install() {
 			exit 0
 			;;
 
-		fedora|centos|redhat|oraclelinux)
+		fedora|centos|redhat|oraclelinux|photon)
 			if [ "${lsb_dist}" = "redhat" ]; then
 				# we use the centos repository for both redhat and centos releases
 				lsb_dist='centos'
@@ -469,6 +440,11 @@ do_install() {
 					set -x
 					$sh_c 'sleep 3; dnf -y -q install docker-engine'
 				)
+			elif [ "$lsb_dist" = "photon" ]; then
+				(
+					set -x
+					$sh_c 'sleep 3; tdnf -y install docker-engine'
+				)
 			else
 				(
 					set -x
@@ -476,33 +452,6 @@ do_install() {
 				)
 			fi
 			echo_docker_as_nonroot
-			exit 0
-			;;
-		gentoo)
-			if [ "$url" = "https://test.docker.com/" ]; then
-				# intentionally mixed spaces and tabs here -- tabs are stripped by "<<-'EOF'", spaces are kept in the output
-				cat >&2 <<-'EOF'
-
-				  You appear to be trying to install the latest nightly build in Gentoo.'
-				  The portage tree should contain the latest stable release of Docker, but'
-				  if you want something more recent, you can always use the live ebuild'
-				  provided in the "docker" overlay available via layman.  For more'
-				  instructions, please see the following URL:'
-
-				    https://github.com/tianon/docker-overlay#using-this-overlay'
-
-				  After adding the "docker" overlay, you should be able to:'
-
-				    emerge -av =app-emulation/docker-9999'
-
-				EOF
-				exit 1
-			fi
-
-			(
-				set -x
-				$sh_c 'sleep 3; emerge app-emulation/docker'
-			)
 			exit 0
 			;;
 	esac
