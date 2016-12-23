@@ -8,8 +8,7 @@ import (
 
 	"golang.org/x/net/context"
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/cli/command/container"
-	"github.com/docker/docker/cli/command"
+		
 )
 
 var VstatsMap = make (map[string]volStats)
