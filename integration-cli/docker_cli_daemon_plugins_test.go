@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/docker/docker/pkg/integration/checker"
+	"github.com/docker/docker/integration-cli/checker"
 	"github.com/docker/docker/pkg/mount"
 	"github.com/go-check/check"
 )
@@ -236,7 +236,7 @@ func (s *DockerDaemonSuite) TestVolumePlugin(c *check.C) {
 }
 
 func (s *DockerDaemonSuite) TestGraphdriverPlugin(c *check.C) {
-	testRequires(c, Network, IsAmd64, DaemonIsLinux, overlay2Supported)
+	testRequires(c, Network, IsAmd64, DaemonIsLinux, overlay2Supported, ExperimentalDaemon)
 
 	s.d.Start(c)
 

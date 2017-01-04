@@ -2689,10 +2689,7 @@ _docker_service_ps() {
 			COMPREPLY=( $( compgen -W "--filter -f --help --no-resolve --no-trunc --quiet -q" -- "$cur" ) )
 			;;
 		*)
-			local counter=$(__docker_pos_first_nonflag '--filter|-f')
-			if [ $cword -eq $counter ]; then
-				__docker_complete_services
-			fi
+			__docker_complete_services
 			;;
 	esac
 }
@@ -2765,6 +2762,10 @@ _docker_service_update() {
 				_filedir
 				return
 				;;
+			--group)
+				COMPREPLY=( $(compgen -g -- "$cur") )
+				return
+				;;
 			--host)
 				case "$cur" in
 					*:)
@@ -2781,10 +2782,6 @@ _docker_service_update() {
 				__docker_complete_secrets
 				return
 				;;
-			--group)
-			COMPREPLY=( $(compgen -g -- "$cur") )
-			return
-			;;
 		esac
 	fi
 	if [ "$subcommand" = "update" ] ; then
@@ -2810,11 +2807,7 @@ _docker_service_update() {
 		"
 
 		case "$prev" in
-			--group-add)
-				COMPREPLY=( $(compgen -g -- "$cur") )
-				return
-				;;
-			--group-rm)
+			--group-add|--group-rm)
 				COMPREPLY=( $(compgen -g -- "$cur") )
 				return
 				;;
@@ -3223,10 +3216,13 @@ _docker_plugin_create() {
 _docker_plugin_disable() {
 	case "$cur" in
 		-*)
-			COMPREPLY=( $( compgen -W "--help" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "--force -f --help" -- "$cur" ) )
 			;;
 		*)
-			__docker_complete_plugins_installed
+			local counter=$(__docker_pos_first_nonflag)
+			if [ $cword -eq $counter ]; then
+				__docker_complete_plugins_installed
+			fi
 			;;
 	esac
 }
@@ -3243,7 +3239,10 @@ _docker_plugin_enable() {
 			COMPREPLY=( $( compgen -W "--help --timeout" -- "$cur" ) )
 			;;
 		*)
-			__docker_complete_plugins_installed
+			local counter=$(__docker_pos_first_nonflag '--timeout')
+			if [ $cword -eq $counter ]; then
+				__docker_complete_plugins_installed
+			fi
 			;;
 	esac
 }
@@ -3266,9 +3265,15 @@ _docker_plugin_inspect() {
 }
 
 _docker_plugin_install() {
+	case "$prev" in
+		--alias)
+			return
+			;;
+	esac
+
 	case "$cur" in
 		-*)
-			COMPREPLY=( $( compgen -W "--disable --grant-all-permissions--help" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "--alias --disable --grant-all-permissions --help" -- "$cur" ) )
 			;;
 	esac
 }

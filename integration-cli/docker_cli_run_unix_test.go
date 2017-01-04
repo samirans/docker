@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/docker/docker/integration-cli/checker"
 	"github.com/docker/docker/pkg/homedir"
-	"github.com/docker/docker/pkg/integration/checker"
 	"github.com/docker/docker/pkg/mount"
 	"github.com/docker/docker/pkg/parsers"
 	"github.com/docker/docker/pkg/sysinfo"
@@ -71,9 +71,7 @@ func (s *DockerSuite) TestRunWithVolumesIsRecursive(c *check.C) {
 	c.Assert(err, checker.IsNil)
 	defer f.Close()
 
-	runCmd := exec.Command(dockerBinary, "run", "--name", "test-data", "--volume", fmt.Sprintf("%s:/tmp:ro", tmpDir), "busybox:latest", "ls", "/tmp/tmpfs")
-	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	c.Assert(err, checker.IsNil)
+	out, _ := dockerCmd(c, "run", "--name", "test-data", "--volume", fmt.Sprintf("%s:/tmp:ro", tmpDir), "busybox:latest", "ls", "/tmp/tmpfs")
 	c.Assert(out, checker.Contains, filepath.Base(f.Name()), check.Commentf("Recursive bind mount test failed. Expected file not found"))
 }
 

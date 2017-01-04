@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -20,11 +21,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/docker/docker/integration-cli/checker"
 	"github.com/docker/docker/integration-cli/daemon"
-	"github.com/docker/docker/pkg/integration/checker"
-	icmd "github.com/docker/docker/pkg/integration/cmd"
 	"github.com/docker/docker/pkg/mount"
 	"github.com/docker/docker/pkg/stringid"
+	"github.com/docker/docker/pkg/testutil"
+	icmd "github.com/docker/docker/pkg/testutil/cmd"
 	"github.com/docker/go-units"
 	"github.com/docker/libnetwork/iptables"
 	"github.com/docker/libtrust"
@@ -224,6 +226,16 @@ func (s *DockerDaemonSuite) TestDaemonRestartWithIncreasedBasesize(c *check.C) {
 	s.d.Stop(c)
 }
 
+func convertBasesize(basesizeBytes int64) (int64, error) {
+	basesize := units.HumanSize(float64(basesizeBytes))
+	basesize = strings.Trim(basesize, " ")[:len(basesize)-3]
+	basesizeFloat, err := strconv.ParseFloat(strings.Trim(basesize, " "), 64)
+	if err != nil {
+		return 0, err
+	}
+	return int64(basesizeFloat) * 1024 * 1024 * 1024, nil
+}
+
 // Issue #8444: If docker0 bridge is modified (intentionally or unintentionally) and
 // no longer has an IP associated, we should gracefully handle that case and associate
 // an IP with it rather than fail daemon start
@@ -235,11 +247,7 @@ func (s *DockerDaemonSuite) TestDaemonStartBridgeWithoutIPAssociation(c *check.C
 	s.d.Stop(c)
 
 	// now we will remove the ip from docker0 and then try starting the daemon
-	ipCmd := exec.Command("ip", "addr", "flush", "dev", "docker0")
-	stdout, stderr, _, err := runCommandWithStdoutStderr(ipCmd)
-	if err != nil {
-		c.Fatalf("failed to remove docker0 IP association: %v, stdout: %q, stderr: %q", err, stdout, stderr)
-	}
+	icmd.RunCommand("ip", "addr", "flush", "dev", "docker0").Assert(c, icmd.Success)
 
 	if err := s.d.StartWithError(); err != nil {
 		warning := "**WARNING: Docker bridge network in bad state--delete docker0 bridge interface to fix"
@@ -668,24 +676,16 @@ func (s *DockerDaemonSuite) TestDaemonBridgeIP(c *check.C) {
 	defer d.Restart(c)
 
 	ifconfigSearchString := ip.String()
-	ifconfigCmd := exec.Command("ifconfig", defaultNetworkBridge)
-	out, _, _, err := runCommandWithStdoutStderr(ifconfigCmd)
-	c.Assert(err, check.IsNil)
-
-	c.Assert(strings.Contains(out, ifconfigSearchString), check.Equals, true,
-		check.Commentf("ifconfig output should have contained %q, but was %q",
-			ifconfigSearchString, out))
+	icmd.RunCommand("ifconfig", defaultNetworkBridge).Assert(c, icmd.Expected{
+		Out: ifconfigSearchString,
+	})
 
 	ipTablesSearchString := bridgeIPNet.String()
-	ipTablesCmd := exec.Command("iptables", "-t", "nat", "-nvL")
-	out, _, err = runCommandWithOutput(ipTablesCmd)
-	c.Assert(err, check.IsNil)
+	icmd.RunCommand("iptables", "-t", "nat", "-nvL").Assert(c, icmd.Expected{
+		Out: ipTablesSearchString,
+	})
 
-	c.Assert(strings.Contains(out, ipTablesSearchString), check.Equals, true,
-		check.Commentf("iptables output should have contained %q, but was %q",
-			ipTablesSearchString, out))
-
-	out, err = d.Cmd("run", "-d", "--name", "test", "busybox", "top")
+	_, err := d.Cmd("run", "-d", "--name", "test", "busybox", "top")
 	c.Assert(err, check.IsNil)
 
 	containerIP, err := d.FindContainerIP("test")
@@ -706,24 +706,15 @@ func (s *DockerDaemonSuite) TestDaemonRestartWithBridgeIPChange(c *check.C) {
 	bridgeIP := "192.169.100.1/24"
 	_, bridgeIPNet, _ := net.ParseCIDR(bridgeIP)
 
-	ipCmd := exec.Command("ifconfig", "docker0", bridgeIP)
-	stdout, stderr, _, err := runCommandWithStdoutStderr(ipCmd)
-	if err != nil {
-		c.Fatalf("failed to change docker0's IP association: %v, stdout: %q, stderr: %q", err, stdout, stderr)
-	}
+	icmd.RunCommand("ifconfig", "docker0", bridgeIP).Assert(c, icmd.Success)
 
 	s.d.Start(c, "--bip", bridgeIP)
 
 	//check if the iptables contains new bridgeIP MASQUERADE rule
 	ipTablesSearchString := bridgeIPNet.String()
-	ipTablesCmd := exec.Command("iptables", "-t", "nat", "-nvL")
-	out, _, err := runCommandWithOutput(ipTablesCmd)
-	if err != nil {
-		c.Fatalf("Could not run iptables -nvL: %s, %v", out, err)
-	}
-	if !strings.Contains(out, ipTablesSearchString) {
-		c.Fatalf("iptables output should have contained new MASQUERADE rule with IP %q, but was %q", ipTablesSearchString, out)
-	}
+	icmd.RunCommand("iptables", "-t", "nat", "-nvL").Assert(c, icmd.Expected{
+		Out: ipTablesSearchString,
+	})
 }
 
 func (s *DockerDaemonSuite) TestDaemonBridgeFixedCidr(c *check.C) {
@@ -1908,7 +1899,7 @@ func (s *DockerDaemonSuite) TestDaemonCgroupParent(c *check.C) {
 
 	out, err := s.d.Cmd("run", "--name", name, "busybox", "cat", "/proc/self/cgroup")
 	c.Assert(err, checker.IsNil)
-	cgroupPaths := parseCgroupPaths(string(out))
+	cgroupPaths := testutil.ParseCgroupPaths(string(out))
 	c.Assert(len(cgroupPaths), checker.Not(checker.Equals), 0, check.Commentf("unexpected output - %q", string(out)))
 	out, err = s.d.Cmd("inspect", "-f", "{{.Id}}", name)
 	c.Assert(err, checker.IsNil)
@@ -2174,6 +2165,9 @@ func (s *DockerDaemonSuite) TestDaemonStartWithoutColors(c *check.C) {
 
 	infoLog := "\x1b[34mINFO\x1b"
 
+	b := bytes.NewBuffer(nil)
+	done := make(chan bool)
+
 	p, tty, err := pty.Open()
 	c.Assert(err, checker.IsNil)
 	defer func() {
@@ -2181,19 +2175,38 @@ func (s *DockerDaemonSuite) TestDaemonStartWithoutColors(c *check.C) {
 		p.Close()
 	}()
 
-	b := bytes.NewBuffer(nil)
-	go io.Copy(b, p)
+	go func() {
+		io.Copy(b, p)
+		done <- true
+	}()
 
 	// Enable coloring explicitly
 	s.d.StartWithLogFile(tty, "--raw-logs=false")
 	s.d.Stop(c)
+	// Wait for io.Copy() before checking output
+	<-done
 	c.Assert(b.String(), checker.Contains, infoLog)
 
 	b.Reset()
 
+	// "tty" is already closed in prev s.d.Stop(),
+	// we have to close the other side "p" and open another pair of
+	// pty for the next test.
+	p.Close()
+	p, tty, err = pty.Open()
+	c.Assert(err, checker.IsNil)
+
+	go func() {
+		io.Copy(b, p)
+		done <- true
+	}()
+
 	// Disable coloring explicitly
 	s.d.StartWithLogFile(tty, "--raw-logs=true")
 	s.d.Stop(c)
+	// Wait for io.Copy() before checking output
+	<-done
+	c.Assert(b.String(), check.Not(check.Equals), "")
 	c.Assert(b.String(), check.Not(checker.Contains), infoLog)
 }
 
@@ -2832,7 +2845,7 @@ func (s *DockerDaemonSuite) TestExecWithUserAfterLiveRestore(c *check.C) {
 	out, err := s.d.Cmd("run", "-d", "--name=top", "busybox", "sh", "-c", "addgroup -S test && adduser -S -G test test -D -s /bin/sh && top")
 	c.Assert(err, check.IsNil, check.Commentf("Output: %s", out))
 
-	waitRun("top")
+	s.d.WaitRun("top")
 
 	out1, err := s.d.Cmd("exec", "-u", "test", "top", "id")
 	// uid=100(test) gid=101(test) groups=101(test)
@@ -2847,4 +2860,37 @@ func (s *DockerDaemonSuite) TestExecWithUserAfterLiveRestore(c *check.C) {
 
 	out, err = s.d.Cmd("stop", "top")
 	c.Assert(err, check.IsNil, check.Commentf("Output: %s", out))
+}
+
+func (s *DockerDaemonSuite) TestRemoveContainerAfterLiveRestore(c *check.C) {
+	testRequires(c, DaemonIsLinux, overlayFSSupported, SameHostDaemon)
+	s.d.StartWithBusybox(c, "--live-restore", "--storage-driver", "overlay")
+	out, err := s.d.Cmd("run", "-d", "--name=top", "busybox", "top")
+	c.Assert(err, check.IsNil, check.Commentf("Output: %s", out))
+
+	s.d.WaitRun("top")
+
+	// restart daemon.
+	s.d.Restart(c, "--live-restore", "--storage-driver", "overlay")
+
+	out, err = s.d.Cmd("stop", "top")
+	c.Assert(err, check.IsNil, check.Commentf("Output: %s", out))
+
+	// test if the rootfs mountpoint still exist
+	mountpoint, err := s.d.InspectField("top", ".GraphDriver.Data.MergedDir")
+	c.Assert(err, check.IsNil)
+	f, err := os.Open("/proc/self/mountinfo")
+	c.Assert(err, check.IsNil)
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := sc.Text()
+		if strings.Contains(line, mountpoint) {
+			c.Fatalf("mountinfo should not include the mountpoint of stop container")
+		}
+	}
+
+	out, err = s.d.Cmd("rm", "top")
+	c.Assert(err, check.IsNil, check.Commentf("Output: %s", out))
+
 }

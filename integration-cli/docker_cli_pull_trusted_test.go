@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/pkg/integration/checker"
+	"github.com/docker/docker/integration-cli/checker"
+	"github.com/docker/docker/pkg/testutil"
 	"github.com/go-check/check"
 )
 
@@ -69,7 +70,7 @@ func (s *DockerTrustSuite) TestPullWhenCertExpired(c *check.C) {
 	// Certificates have 10 years of expiration
 	elevenYearsFromNow := time.Now().Add(time.Hour * 24 * 365 * 11)
 
-	runAtDifferentDate(elevenYearsFromNow, func() {
+	testutil.RunAtDifferentDate(elevenYearsFromNow, func() {
 		// Try pull
 		pullCmd := exec.Command(dockerBinary, "pull", repoName)
 		s.trustedCmd(pullCmd)
@@ -79,7 +80,7 @@ func (s *DockerTrustSuite) TestPullWhenCertExpired(c *check.C) {
 		c.Assert(string(out), checker.Contains, "could not validate the path to a trusted root", check.Commentf(out))
 	})
 
-	runAtDifferentDate(elevenYearsFromNow, func() {
+	testutil.RunAtDifferentDate(elevenYearsFromNow, func() {
 		// Try pull
 		pullCmd := exec.Command(dockerBinary, "pull", "--disable-content-trust", repoName)
 		s.trustedCmd(pullCmd)
@@ -166,7 +167,7 @@ func (s *DockerTrustSuite) TestTrustedPullWithExpiredSnapshot(c *check.C) {
 	// Snapshots last for three years. This should be expired
 	fourYearsLater := time.Now().Add(time.Hour * 24 * 365 * 4)
 
-	runAtDifferentDate(fourYearsLater, func() {
+	testutil.RunAtDifferentDate(fourYearsLater, func() {
 		// Try pull
 		pullCmd := exec.Command(dockerBinary, "pull", repoName)
 		s.trustedCmd(pullCmd)
