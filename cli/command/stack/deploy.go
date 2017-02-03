@@ -1,15 +1,11 @@
 package stack
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
-
-	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/swarm"
@@ -18,7 +14,11 @@ import (
 	"github.com/docker/docker/cli/compose/convert"
 	"github.com/docker/docker/cli/compose/loader"
 	composetypes "github.com/docker/docker/cli/compose/types"
+	apiclient "github.com/docker/docker/client"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -117,18 +117,43 @@ func deployCompose(ctx context.Context, dockerCli *command.DockerCli, opts deplo
 
 	namespace := convert.NewNamespace(opts.namespace)
 
-	networks, externalNetworks := convert.Networks(namespace, config.Networks)
+	serviceNetworks := getServicesDeclaredNetworks(config.Services)
+
+	networks, externalNetworks := convert.Networks(namespace, config.Networks, serviceNetworks)
 	if err := validateExternalNetworks(ctx, dockerCli, externalNetworks); err != nil {
 		return err
 	}
 	if err := createNetworks(ctx, dockerCli, namespace, networks); err != nil {
 		return err
 	}
-	services, err := convert.Services(namespace, config)
+
+	secrets, err := convert.Secrets(namespace, config.Secrets)
+	if err != nil {
+		return err
+	}
+	if err := createSecrets(ctx, dockerCli, namespace, secrets); err != nil {
+		return err
+	}
+
+	services, err := convert.Services(namespace, config, dockerCli.Client())
 	if err != nil {
 		return err
 	}
 	return deployServices(ctx, dockerCli, services, namespace, opts.sendRegistryAuth)
+}
+
+func getServicesDeclaredNetworks(serviceConfigs []composetypes.ServiceConfig) map[string]struct{} {
+	serviceNetworks := map[string]struct{}{}
+	for _, serviceConfig := range serviceConfigs {
+		if len(serviceConfig.Networks) == 0 {
+			serviceNetworks["default"] = struct{}{}
+			continue
+		}
+		for network := range serviceConfig.Networks {
+			serviceNetworks[network] = struct{}{}
+		}
+	}
+	return serviceNetworks
 }
 
 func propertyWarnings(properties map[string]string) string {
@@ -192,6 +217,33 @@ func validateExternalNetworks(
 		}
 	}
 
+	return nil
+}
+
+func createSecrets(
+	ctx context.Context,
+	dockerCli *command.DockerCli,
+	namespace convert.Namespace,
+	secrets []swarm.SecretSpec,
+) error {
+	client := dockerCli.Client()
+
+	for _, secretSpec := range secrets {
+		secret, _, err := client.SecretInspectWithRaw(ctx, secretSpec.Name)
+		if err == nil {
+			// secret already exists, then we update that
+			if err := client.SecretUpdate(ctx, secret.ID, secret.Meta.Version, secretSpec); err != nil {
+				return err
+			}
+		} else if apiclient.IsErrSecretNotFound(err) {
+			// secret does not exist, then we create a new one.
+			if _, err := client.SecretCreate(ctx, secretSpec); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
 	return nil
 }
 

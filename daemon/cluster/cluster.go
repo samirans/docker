@@ -71,7 +71,7 @@ import (
 	swarmapi "github.com/docker/swarmkit/api"
 	"github.com/docker/swarmkit/manager/encryption"
 	swarmnode "github.com/docker/swarmkit/node"
-	"github.com/docker/swarmkit/protobuf/ptypes"
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
@@ -244,7 +244,7 @@ func (c *Cluster) newNodeRunner(conf nodeStartConfig) (*nodeRunner, error) {
 		return nil, err
 	}
 
-	c.config.Backend.SetClusterProvider(c)
+	c.config.Backend.DaemonJoinsCluster(c)
 
 	return nr, nil
 }
@@ -320,6 +320,7 @@ func (c *Cluster) Init(req types.InitRequest) (string, error) {
 		LocalAddr:       localAddr,
 		ListenAddr:      net.JoinHostPort(listenHost, listenPort),
 		AdvertiseAddr:   net.JoinHostPort(advertiseHost, advertisePort),
+		availability:    req.Availability,
 	})
 	if err != nil {
 		return "", err
@@ -389,6 +390,7 @@ func (c *Cluster) Join(req types.JoinRequest) error {
 		AdvertiseAddr: advertiseAddr,
 		joinAddr:      req.RemoteAddrs[0],
 		joinToken:     req.JoinToken,
+		availability:  req.Availability,
 	})
 	if err != nil {
 		return err
@@ -560,7 +562,7 @@ func (c *Cluster) Leave(force bool) error {
 	if err := clearPersistentState(c.root); err != nil {
 		return err
 	}
-	c.config.Backend.SetClusterProvider(nil)
+	c.config.Backend.DaemonLeavesCluster()
 	return nil
 }
 
@@ -748,7 +750,9 @@ func (c *Cluster) Info() types.Info {
 		// Strip JoinTokens
 		info.Cluster = swarm.ClusterInfo
 
-		if r, err := state.controlClient.ListNodes(ctx, &swarmapi.ListNodesRequest{}); err == nil {
+		if r, err := state.controlClient.ListNodes(ctx, &swarmapi.ListNodesRequest{}); err != nil {
+			info.Error = err.Error()
+		} else {
 			info.Nodes = len(r.Nodes)
 			for _, n := range r.Nodes {
 				if n.ManagerStatus != nil {
@@ -1134,7 +1138,7 @@ func (c *Cluster) ServiceLogs(ctx context.Context, input string, config *backend
 			data := []byte{}
 
 			if config.Timestamps {
-				ts, err := ptypes.Timestamp(msg.Timestamp)
+				ts, err := gogotypes.TimestampFromProto(msg.Timestamp)
 				if err != nil {
 					return err
 				}

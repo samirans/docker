@@ -201,12 +201,6 @@ func (daemon *Daemon) setHostConfig(container *container.Container, hostConfig *
 		return err
 	}
 
-	// make sure links is not nil
-	// this ensures that on the next daemon restart we don't try to migrate from legacy sqlite links
-	if hostConfig.Links == nil {
-		hostConfig.Links = []string{}
-	}
-
 	container.HostConfig = hostConfig
 	return container.ToDisk()
 }
@@ -235,6 +229,21 @@ func (daemon *Daemon) verifyContainerSettings(hostConfig *containertypes.HostCon
 		for _, env := range config.Env {
 			if _, err := opts.ValidateEnv(env); err != nil {
 				return nil, err
+			}
+		}
+
+		// Validate the healthcheck params of Config
+		if config.Healthcheck != nil {
+			if config.Healthcheck.Interval != 0 && config.Healthcheck.Interval < time.Second {
+				return nil, fmt.Errorf("Interval in Healthcheck cannot be less than one second")
+			}
+
+			if config.Healthcheck.Timeout != 0 && config.Healthcheck.Timeout < time.Second {
+				return nil, fmt.Errorf("Timeout in Healthcheck cannot be less than one second")
+			}
+
+			if config.Healthcheck.Retries < 0 {
+				return nil, fmt.Errorf("Retries in Healthcheck cannot be negative")
 			}
 		}
 	}

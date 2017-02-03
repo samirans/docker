@@ -17,6 +17,9 @@ keywords: "API, Docker, rcli, REST, documentation"
 
 [Docker Engine API v1.26](v1.26/) documentation
 
+* `GET /containers/(id or name)/attach/ws` now returns WebSocket in binary frame format for API version >= v1.26,
+  and returns WebSocket in text frame format for API version< v1.26, for the purpose of backward-compatibility.
+
 ## v1.25 API changes
 
 [Docker Engine API v1.25](v1.25.md) documentation
@@ -82,6 +85,8 @@ keywords: "API, Docker, rcli, REST, documentation"
 * `GET /secrets/{id}` returns information on the secret `id`.
 * `POST /secrets/{id}/update` updates the secret `id`.
 * `POST /services/(id or name)/update` now accepts service name or prefix of service id as a parameter.
+* `POST /containers/create` added 2 built-in log-opts that work on all logging drivers,
+`mode` (`blocking`|`non-blocking`), and `max-buffer-size` (e.g. `2m`) which enables a non-blocking log buffer.
 
 ## v1.24 API changes
 

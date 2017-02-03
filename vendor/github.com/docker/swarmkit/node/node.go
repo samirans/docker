@@ -14,10 +14,12 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/boltdb/bolt"
+	"github.com/docker/docker/pkg/plugingetter"
 	"github.com/docker/swarmkit/agent"
 	"github.com/docker/swarmkit/agent/exec"
 	"github.com/docker/swarmkit/api"
 	"github.com/docker/swarmkit/ca"
+	"github.com/docker/swarmkit/connectionbroker"
 	"github.com/docker/swarmkit/ioutils"
 	"github.com/docker/swarmkit/log"
 	"github.com/docker/swarmkit/manager"
@@ -97,6 +99,9 @@ type Config struct {
 
 	// Availability allows a user to control the current scheduling status of a node
 	Availability api.NodeSpec_Availability
+
+	// PluginGetter provides access to docker's plugin inventory.
+	PluginGetter plugingetter.PluginGetter
 }
 
 // Node implements the primary node functionality for a member of a swarm
@@ -105,6 +110,7 @@ type Node struct {
 	sync.RWMutex
 	config           *Config
 	remotes          *persistentRemotes
+	connBroker       *connectionbroker.Broker
 	role             string
 	roleCond         *sync.Cond
 	conn             *grpc.ClientConn
@@ -129,11 +135,11 @@ func (n *Node) RemoteAPIAddr() (string, error) {
 	n.RLock()
 	defer n.RUnlock()
 	if n.manager == nil {
-		return "", errors.Errorf("node is not manager")
+		return "", errors.New("manager is not running")
 	}
 	addr := n.manager.Addr()
 	if addr == "" {
-		return "", errors.Errorf("manager addr is not set")
+		return "", errors.New("manager addr is not set")
 	}
 	return addr, nil
 }
@@ -154,7 +160,6 @@ func New(c *Config) (*Node, error) {
 			return nil, err
 		}
 	}
-
 	n := &Node{
 		remotes:          newPersistentRemotes(stateFile, p...),
 		role:             ca.WorkerRole,
@@ -174,9 +179,26 @@ func New(c *Config) (*Node, error) {
 		}
 	}
 
+	n.connBroker = connectionbroker.New(n.remotes)
+
 	n.roleCond = sync.NewCond(n.RLocker())
 	n.connCond = sync.NewCond(n.RLocker())
 	return n, nil
+}
+
+// BindRemote starts a listener that exposes the remote API.
+func (n *Node) BindRemote(ctx context.Context, listenAddr string, advertiseAddr string) error {
+	n.RLock()
+	defer n.RUnlock()
+
+	if n.manager == nil {
+		return errors.New("manager is not running")
+	}
+
+	return n.manager.BindRemote(ctx, manager.RemoteAddrs{
+		ListenAddr:    listenAddr,
+		AdvertiseAddr: advertiseAddr,
+	})
 }
 
 // Start starts a node instance.
@@ -261,7 +283,7 @@ func (n *Node) run(ctx context.Context) (err error) {
 		}
 	}()
 
-	updates := ca.RenewTLSConfig(ctx, securityConfig, n.remotes, forceCertRenewal)
+	updates := ca.RenewTLSConfig(ctx, securityConfig, n.connBroker, forceCertRenewal)
 	go func() {
 		for {
 			select {
@@ -368,17 +390,35 @@ func (n *Node) Err(ctx context.Context) error {
 }
 
 func (n *Node) runAgent(ctx context.Context, db *bolt.DB, creds credentials.TransportCredentials, ready chan<- struct{}) error {
+	waitCtx, waitCancel := context.WithCancel(ctx)
+	remotesCh := n.remotes.WaitSelect(ctx)
+	controlCh := n.ListenControlSocket(waitCtx)
+
+waitPeer:
+	for {
+		select {
+		case <-ctx.Done():
+			break waitPeer
+		case <-remotesCh:
+			break waitPeer
+		case conn := <-controlCh:
+			if conn != nil {
+				break waitPeer
+			}
+		}
+	}
+
+	waitCancel()
+
 	select {
 	case <-ctx.Done():
-	case <-n.remotes.WaitSelect(ctx):
-	}
-	if ctx.Err() != nil {
 		return ctx.Err()
+	default:
 	}
 
 	a, err := agent.New(&agent.Config{
 		Hostname:         n.config.Hostname,
-		Managers:         n.remotes,
+		ConnBroker:       n.connBroker,
 		Executor:         n.config.Executor,
 		DB:               db,
 		NotifyNodeChange: n.notifyNodeChange,
@@ -423,6 +463,7 @@ func (n *Node) setControlSocket(conn *grpc.ClientConn) {
 		n.conn.Close()
 	}
 	n.conn = conn
+	n.connBroker.SetLocalConn(conn)
 	n.connCond.Broadcast()
 	n.Unlock()
 }
@@ -447,15 +488,21 @@ func (n *Node) ListenControlSocket(ctx context.Context) <-chan *grpc.ClientConn 
 		defer close(done)
 		defer n.RUnlock()
 		for {
-			if ctx.Err() != nil {
+			select {
+			case <-ctx.Done():
 				return
+			default:
 			}
 			if conn == n.conn {
 				n.connCond.Wait()
 				continue
 			}
 			conn = n.conn
-			c <- conn
+			select {
+			case c <- conn:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 	return c
@@ -480,6 +527,20 @@ func (n *Node) Agent() *agent.Agent {
 	n.RLock()
 	defer n.RUnlock()
 	return n.agent
+}
+
+// IsStateDirty returns true if any objects have been added to raft which make
+// the state "dirty". Currently, the existence of any object other than the
+// default cluster or the local node implies a dirty state.
+func (n *Node) IsStateDirty() (bool, error) {
+	n.RLock()
+	defer n.RUnlock()
+
+	if n.manager == nil {
+		return false, errors.New("node is not a manager")
+	}
+
+	return n.manager.IsStateDirty()
 }
 
 // Remotes returns a list of known peers known to node.
@@ -532,7 +593,7 @@ func (n *Node) loadSecurityConfig(ctx context.Context) (*ca.SecurityConfig, erro
 			}
 			log.G(ctx).Debug("generated CA key and certificate")
 		} else if err == ca.ErrNoLocalRootCA { // from previous error loading the root CA from disk
-			rootCA, err = ca.DownloadRootCA(ctx, paths.RootCA, n.config.JoinToken, n.remotes)
+			rootCA, err = ca.DownloadRootCA(ctx, paths.RootCA, n.config.JoinToken, n.connBroker)
 			if err != nil {
 				return nil, err
 			}
@@ -559,7 +620,7 @@ func (n *Node) loadSecurityConfig(ctx context.Context) (*ca.SecurityConfig, erro
 			securityConfig, err = rootCA.CreateSecurityConfig(ctx, krw, ca.CertificateRequestConfig{
 				Token:        n.config.JoinToken,
 				Availability: n.config.Availability,
-				Remotes:      n.remotes,
+				ConnBroker:   n.connBroker,
 			})
 
 			if err != nil {
@@ -638,13 +699,18 @@ func (n *Node) waitRole(ctx context.Context, role string) error {
 }
 
 func (n *Node) runManager(ctx context.Context, securityConfig *ca.SecurityConfig, ready chan struct{}, workerRole <-chan struct{}) error {
-	remoteAddr, _ := n.remotes.Select(n.NodeID())
-	m, err := manager.New(&manager.Config{
-		ForceNewCluster: n.config.ForceNewCluster,
-		RemoteAPI: manager.RemoteAddrs{
+	var remoteAPI *manager.RemoteAddrs
+	if n.config.ListenRemoteAPI != "" {
+		remoteAPI = &manager.RemoteAddrs{
 			ListenAddr:    n.config.ListenRemoteAPI,
 			AdvertiseAddr: n.config.AdvertiseRemoteAPI,
-		},
+		}
+	}
+
+	remoteAddr, _ := n.remotes.Select(n.NodeID())
+	m, err := manager.New(&manager.Config{
+		ForceNewCluster:  n.config.ForceNewCluster,
+		RemoteAPI:        remoteAPI,
 		ControlAPI:       n.config.ListenControlAPI,
 		SecurityConfig:   securityConfig,
 		ExternalCAs:      n.config.ExternalCAs,
@@ -655,6 +721,7 @@ func (n *Node) runManager(ctx context.Context, securityConfig *ca.SecurityConfig
 		AutoLockManagers: n.config.AutoLockManagers,
 		UnlockKey:        n.unlockKey,
 		Availability:     n.config.Availability,
+		PluginGetter:     n.config.PluginGetter,
 	})
 	if err != nil {
 		return err
@@ -686,22 +753,6 @@ func (n *Node) runManager(ctx context.Context, securityConfig *ca.SecurityConfig
 	defer connCancel()
 
 	go n.initManagerConnection(connCtx, ready)
-
-	// this happens only on initial start
-	if ready != nil {
-		go func(ready chan struct{}) {
-			select {
-			case <-ready:
-				addr, err := n.RemoteAPIAddr()
-				if err != nil {
-					log.G(ctx).WithError(err).Errorf("get remote api addr")
-				} else {
-					n.remotes.Observe(api.Peer{NodeID: n.NodeID(), Addr: addr}, remotes.DefaultObservationWeight)
-				}
-			case <-connCtx.Done():
-			}
-		}(ready)
-	}
 
 	// wait for manager stop or for role change
 	select {
